@@ -45,7 +45,7 @@ class USDAVisionSystem:
         self.event_system = EventSystem()
         
         # Initialize system components
-        self.storage_manager = StorageManager(self.config, self.state_manager)
+        self.storage_manager = StorageManager(self.config, self.state_manager, self.event_system)
         self.mqtt_client = MQTTClient(self.config, self.state_manager, self.event_system)
         self.camera_manager = CameraManager(self.config, self.state_manager, self.event_system)
         self.api_server = APIServer(

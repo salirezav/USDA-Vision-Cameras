@@ -90,6 +90,7 @@ class APIServer:
         self.server_start_time = datetime.now()
         self.running = False
         self._server_thread: Optional[threading.Thread] = None
+        self._event_loop: Optional[asyncio.AbstractEventLoop] = None
         
         # Setup CORS
         self.app.add_middleware(
@@ -349,8 +350,15 @@ class APIServer:
                     "timestamp": event.timestamp.isoformat()
                 }
 
-                # Use asyncio to broadcast (need to handle thread safety)
-                asyncio.create_task(self.websocket_manager.broadcast(message))
+                # Schedule the broadcast in the event loop thread-safely
+                if self._event_loop and not self._event_loop.is_closed():
+                    # Use call_soon_threadsafe to schedule the coroutine from another thread
+                    asyncio.run_coroutine_threadsafe(
+                        self.websocket_manager.broadcast(message),
+                        self._event_loop
+                    )
+                else:
+                    self.logger.debug("Event loop not available for broadcasting")
 
             except Exception as e:
                 self.logger.error(f"Error broadcasting event: {e}")
@@ -399,6 +407,10 @@ class APIServer:
     def _run_server(self) -> None:
         """Run the uvicorn server"""
         try:
+            # Capture the event loop for thread-safe event broadcasting
+            self._event_loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(self._event_loop)
+
             uvicorn.run(
                 self.app,
                 host=self.config.system.api_host,
@@ -409,6 +421,7 @@ class APIServer:
             self.logger.error(f"Error running API server: {e}")
         finally:
             self.running = False
+            self._event_loop = None
 
     def is_running(self) -> bool:
         """Check if API server is running"""

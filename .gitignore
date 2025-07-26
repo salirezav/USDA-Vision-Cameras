@@ -81,3 +81,4 @@ Thumbs.db
 
 # Old test files (keep in repo for reference)
 # old tests/
+Camera/log/*

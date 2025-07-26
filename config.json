@@ -10,7 +10,7 @@
     }
   },
   "storage": {
-    "base_path": "./storage",
+    "base_path": "/storage",
     "max_file_size_mb": 1000,
     "max_recording_duration_minutes": 60,
     "cleanup_older_than_days": 30
@@ -28,19 +28,19 @@
     {
       "name": "camera1",
       "machine_topic": "vibratory_conveyor",
-      "storage_path": "./storage/camera1",
+      "storage_path": "/storage/camera1",
       "exposure_ms": 1.0,
       "gain": 3.5,
-      "target_fps": 3.0,
+      "target_fps": 0,
       "enabled": true
     },
     {
       "name": "camera2",
       "machine_topic": "blower_separator",
-      "storage_path": "./storage/camera2",
+      "storage_path": "/storage/camera2",
       "exposure_ms": 1.0,
       "gain": 3.5,
-      "target_fps": 3.0,
+      "target_fps": 0,
       "enabled": true
     }
   ]

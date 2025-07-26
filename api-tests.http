@@ -1,0 +1,80 @@
+### Get system status
+GET http://localhost:8000/system/status
+
+###
+
+### Get camera1 status
+GET http://localhost:8000/cameras/camera1/status
+
+###
+
+### Get camera2 status  
+GET http://localhost:8000/cameras/camera2/status
+
+###
+
+### Start recording camera1
+POST http://localhost:8000/cameras/camera1/start-recording
+Content-Type: application/json
+
+{
+  "camera_name": "camera1",
+  "filename": "manual_test_cam1.avi"
+}
+
+###
+
+### Start recording camera2
+POST http://localhost:8000/cameras/camera2/start-recording
+Content-Type: application/json
+
+{
+  "camera_name": "camera2", 
+  "filename": "manual_test_cam2.avi"
+}
+
+###
+
+### Stop camera1 recording
+POST http://localhost:8000/cameras/camera1/stop-recording
+
+###
+
+### Stop camera2 recording
+POST http://localhost:8000/cameras/camera2/stop-recording
+
+###
+
+### Get all cameras status
+GET http://localhost:8000/cameras
+
+###
+
+### Get storage statistics
+GET http://localhost:8000/storage/stats
+
+###
+
+### Get storage files list
+POST http://localhost:8000/storage/files
+Content-Type: application/json
+
+{
+  "camera_name": "camera1",
+  "limit": 10
+}
+
+###
+
+### Get storage files list (all cameras)
+POST http://localhost:8000/storage/files
+Content-Type: application/json
+
+{
+  "limit": 20
+}
+
+###
+
+### Health check
+GET http://localhost:8000/health

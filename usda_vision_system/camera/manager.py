@@ -147,21 +147,44 @@ class CameraManager:
                     device_info = self._find_camera_device(camera_config.name)
                     if device_info is None:
                         self.logger.warning(f"No physical camera found for configured camera: {camera_config.name}")
+                        # Update state to indicate camera is not available
+                        self.state_manager.update_camera_status(
+                            name=camera_config.name,
+                            status="not_found",
+                            device_info=None
+                        )
                         continue
-                    
-                    # Create recorder
+
+                    # Create recorder (this will attempt to initialize the camera)
                     recorder = CameraRecorder(
                         camera_config=camera_config,
                         device_info=device_info,
                         state_manager=self.state_manager,
                         event_system=self.event_system
                     )
-                    
+
+                    # Check if camera initialization was successful
+                    if recorder.hCamera is None:
+                        self.logger.warning(f"Camera {camera_config.name} failed to initialize, skipping")
+                        # Update state to indicate camera initialization failed
+                        self.state_manager.update_camera_status(
+                            name=camera_config.name,
+                            status="initialization_failed",
+                            device_info={"error": "Camera initialization failed"}
+                        )
+                        continue
+
                     self.camera_recorders[camera_config.name] = recorder
-                    self.logger.info(f"Initialized recorder for camera: {camera_config.name}")
-                    
+                    self.logger.info(f"Successfully initialized recorder for camera: {camera_config.name}")
+
                 except Exception as e:
                     self.logger.error(f"Error initializing recorder for {camera_config.name}: {e}")
+                    # Update state to indicate error
+                    self.state_manager.update_camera_status(
+                        name=camera_config.name,
+                        status="error",
+                        device_info={"error": str(e)}
+                    )
     
     def _find_camera_device(self, camera_name: str) -> Optional[Any]:
         """Find physical camera device for a configured camera"""

@@ -27,12 +27,13 @@ from ..core.timezone_utils import now_atlanta, format_filename_timestamp
 
 class CameraRecorder:
     """Handles video recording for a single camera"""
-    
-    def __init__(self, camera_config: CameraConfig, device_info: Any, state_manager: StateManager, event_system: EventSystem):
+
+    def __init__(self, camera_config: CameraConfig, device_info: Any, state_manager: StateManager, event_system: EventSystem, storage_manager=None):
         self.camera_config = camera_config
         self.device_info = device_info
         self.state_manager = state_manager
         self.event_system = event_system
+        self.storage_manager = storage_manager
         self.logger = logging.getLogger(f"{__name__}.{camera_config.name}")
         
         # Camera handle and properties
@@ -61,39 +62,47 @@ class CameraRecorder:
         """Initialize the camera with configured settings"""
         try:
             self.logger.info(f"Initializing camera: {self.camera_config.name}")
-            
+
+            # Check if device_info is valid
+            if self.device_info is None:
+                self.logger.error("No device info provided for camera initialization")
+                return False
+
             # Initialize camera
             self.hCamera = mvsdk.CameraInit(self.device_info, -1, -1)
             self.logger.info("Camera initialized successfully")
-            
+
             # Get camera capabilities
             self.cap = mvsdk.CameraGetCapability(self.hCamera)
             self.monoCamera = self.cap.sIspCapacity.bMonoSensor != 0
             self.logger.info(f"Camera type: {'Monochrome' if self.monoCamera else 'Color'}")
-            
+
             # Set output format
             if self.monoCamera:
                 mvsdk.CameraSetIspOutFormat(self.hCamera, mvsdk.CAMERA_MEDIA_TYPE_MONO8)
             else:
                 mvsdk.CameraSetIspOutFormat(self.hCamera, mvsdk.CAMERA_MEDIA_TYPE_BGR8)
-            
+
             # Configure camera settings
             self._configure_camera_settings()
-            
+
             # Allocate frame buffer
-            self.frame_buffer_size = (self.cap.sResolutionRange.iWidthMax * 
-                                    self.cap.sResolutionRange.iHeightMax * 
+            self.frame_buffer_size = (self.cap.sResolutionRange.iWidthMax *
+                                    self.cap.sResolutionRange.iHeightMax *
                                     (1 if self.monoCamera else 3))
             self.frame_buffer = mvsdk.CameraAlignMalloc(self.frame_buffer_size, 16)
-            
+
             # Start camera
             mvsdk.CameraPlay(self.hCamera)
             self.logger.info("Camera started successfully")
-            
+
             return True
-            
+
         except mvsdk.CameraException as e:
-            self.logger.error(f"Camera initialization failed({e.error_code}): {e.message}")
+            error_msg = f"Camera initialization failed({e.error_code}): {e.message}"
+            if e.error_code == 32774:
+                error_msg += " - This may indicate the camera is already in use by another process or there's a resource conflict"
+            self.logger.error(error_msg)
             return False
         except Exception as e:
             self.logger.error(f"Unexpected error during camera initialization: {e}")
@@ -251,8 +260,9 @@ class CameraRecorder:
                     # Release buffer
                     mvsdk.CameraReleaseImageBuffer(self.hCamera, pRawData)
 
-                    # Control frame rate
-                    time.sleep(1.0 / self.camera_config.target_fps)
+                    # Control frame rate (skip sleep if target_fps is 0 for maximum speed)
+                    if self.camera_config.target_fps > 0:
+                        time.sleep(1.0 / self.camera_config.target_fps)
 
                 except mvsdk.CameraException as e:
                     if e.error_code == mvsdk.CAMERA_STATUS_TIME_OUT:
@@ -284,10 +294,13 @@ class CameraRecorder:
             fourcc = cv2.VideoWriter_fourcc(*'XVID')
             frame_size = (FrameHead.iWidth, FrameHead.iHeight)
 
+            # Use 30 FPS for video writer if target_fps is 0 (unlimited)
+            video_fps = self.camera_config.target_fps if self.camera_config.target_fps > 0 else 30.0
+
             self.video_writer = cv2.VideoWriter(
                 self.output_filename,
                 fourcc,
-                self.camera_config.target_fps,
+                video_fps,
                 frame_size
             )
 
@@ -305,14 +318,17 @@ class CameraRecorder:
     def _convert_frame_to_opencv(self, frame_head) -> Optional[np.ndarray]:
         """Convert camera frame to OpenCV format"""
         try:
+            # Convert the frame buffer memory address to a proper buffer
+            # that numpy can work with using mvsdk.c_ubyte
+            frame_data_buffer = (mvsdk.c_ubyte * frame_head.uBytes).from_address(self.frame_buffer)
+            frame_data = np.frombuffer(frame_data_buffer, dtype=np.uint8)
+
             if self.monoCamera:
                 # Monochrome camera - convert to BGR
-                frame_data = np.frombuffer(self.frame_buffer, dtype=np.uint8)
                 frame = frame_data.reshape((frame_head.iHeight, frame_head.iWidth))
                 frame_bgr = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
             else:
                 # Color camera - already in BGR format
-                frame_data = np.frombuffer(self.frame_buffer, dtype=np.uint8)
                 frame_bgr = frame_data.reshape((frame_head.iHeight, frame_head.iWidth, 3))
 
             return frame_bgr

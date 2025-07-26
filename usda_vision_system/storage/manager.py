@@ -14,23 +14,29 @@ import json
 
 from ..core.config import Config, StorageConfig
 from ..core.state_manager import StateManager
+from ..core.events import EventSystem, EventType, Event
 
 
 class StorageManager:
     """Manages storage and file organization for recorded videos"""
     
-    def __init__(self, config: Config, state_manager: StateManager):
+    def __init__(self, config: Config, state_manager: StateManager, event_system: Optional[EventSystem] = None):
         self.config = config
         self.storage_config = config.storage
         self.state_manager = state_manager
+        self.event_system = event_system
         self.logger = logging.getLogger(__name__)
-        
+
         # Ensure base storage directory exists
         self._ensure_storage_structure()
-        
+
         # File tracking
         self.file_index_path = os.path.join(self.storage_config.base_path, "file_index.json")
         self.file_index = self._load_file_index()
+
+        # Subscribe to recording events if event system is available
+        if self.event_system:
+            self._setup_event_subscriptions()
     
     def _ensure_storage_structure(self) -> None:
         """Ensure storage directory structure exists"""
@@ -48,6 +54,44 @@ class StorageManager:
         except Exception as e:
             self.logger.error(f"Error creating storage structure: {e}")
             raise
+
+    def _setup_event_subscriptions(self) -> None:
+        """Setup event subscriptions for recording tracking"""
+        if not self.event_system:
+            return
+
+        def on_recording_started(event: Event):
+            """Handle recording started event"""
+            try:
+                camera_name = event.data.get("camera_name")
+                filename = event.data.get("filename")
+                if camera_name and filename:
+                    self.register_recording_file(
+                        camera_name=camera_name,
+                        filename=filename,
+                        start_time=event.timestamp,
+                        machine_trigger=event.data.get("machine_trigger")
+                    )
+            except Exception as e:
+                self.logger.error(f"Error handling recording started event: {e}")
+
+        def on_recording_stopped(event: Event):
+            """Handle recording stopped event"""
+            try:
+                filename = event.data.get("filename")
+                if filename:
+                    file_id = os.path.basename(filename)
+                    self.finalize_recording_file(
+                        file_id=file_id,
+                        end_time=event.timestamp,
+                        duration_seconds=event.data.get("duration_seconds")
+                    )
+            except Exception as e:
+                self.logger.error(f"Error handling recording stopped event: {e}")
+
+        # Subscribe to recording events
+        self.event_system.subscribe(EventType.RECORDING_STARTED, on_recording_started)
+        self.event_system.subscribe(EventType.RECORDING_STOPPED, on_recording_stopped)
     
     def _load_file_index(self) -> Dict[str, Any]:
         """Load file index from disk"""
@@ -98,6 +142,33 @@ class StorageManager:
         except Exception as e:
             self.logger.error(f"Error registering recording file: {e}")
             return ""
+
+    def finalize_recording_file(self, file_id: str, end_time: datetime, duration_seconds: Optional[float] = None) -> bool:
+        """Finalize a recording file when recording stops"""
+        try:
+            if file_id not in self.file_index["files"]:
+                self.logger.warning(f"Recording file not found for finalization: {file_id}")
+                return False
+
+            file_info = self.file_index["files"][file_id]
+            file_info["end_time"] = end_time.isoformat()
+            file_info["status"] = "completed"
+
+            if duration_seconds is not None:
+                file_info["duration_seconds"] = duration_seconds
+
+            # Get file size if file exists
+            filename = file_info["filename"]
+            if os.path.exists(filename):
+                file_info["file_size_bytes"] = os.path.getsize(filename)
+
+            self._save_file_index()
+            self.logger.info(f"Finalized recording file: {file_id}")
+            return True
+
+        except Exception as e:
+            self.logger.error(f"Error finalizing recording file: {e}")
+            return False
     
     def finalize_recording_file(self, file_id: str, end_time: datetime, 
                               duration_seconds: float, frame_count: Optional[int] = None) -> bool:
