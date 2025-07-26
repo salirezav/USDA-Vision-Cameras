@@ -1,0 +1,349 @@
+"""
+Storage Manager for the USDA Vision Camera System.
+
+This module handles file organization, cleanup, and management for recorded videos.
+"""
+
+import os
+import logging
+import shutil
+from typing import Dict, List, Optional, Any, Tuple
+from datetime import datetime, timedelta
+from pathlib import Path
+import json
+
+from ..core.config import Config, StorageConfig
+from ..core.state_manager import StateManager
+
+
+class StorageManager:
+    """Manages storage and file organization for recorded videos"""
+    
+    def __init__(self, config: Config, state_manager: StateManager):
+        self.config = config
+        self.storage_config = config.storage
+        self.state_manager = state_manager
+        self.logger = logging.getLogger(__name__)
+        
+        # Ensure base storage directory exists
+        self._ensure_storage_structure()
+        
+        # File tracking
+        self.file_index_path = os.path.join(self.storage_config.base_path, "file_index.json")
+        self.file_index = self._load_file_index()
+    
+    def _ensure_storage_structure(self) -> None:
+        """Ensure storage directory structure exists"""
+        try:
+            # Create base storage directory
+            Path(self.storage_config.base_path).mkdir(parents=True, exist_ok=True)
+            
+            # Create camera-specific directories
+            for camera_config in self.config.cameras:
+                Path(camera_config.storage_path).mkdir(parents=True, exist_ok=True)
+                self.logger.debug(f"Ensured storage directory: {camera_config.storage_path}")
+            
+            self.logger.info("Storage directory structure verified")
+            
+        except Exception as e:
+            self.logger.error(f"Error creating storage structure: {e}")
+            raise
+    
+    def _load_file_index(self) -> Dict[str, Any]:
+        """Load file index from disk"""
+        try:
+            if os.path.exists(self.file_index_path):
+                with open(self.file_index_path, 'r') as f:
+                    return json.load(f)
+            else:
+                return {"files": {}, "last_updated": None}
+        except Exception as e:
+            self.logger.error(f"Error loading file index: {e}")
+            return {"files": {}, "last_updated": None}
+    
+    def _save_file_index(self) -> None:
+        """Save file index to disk"""
+        try:
+            self.file_index["last_updated"] = datetime.now().isoformat()
+            with open(self.file_index_path, 'w') as f:
+                json.dump(self.file_index, f, indent=2)
+        except Exception as e:
+            self.logger.error(f"Error saving file index: {e}")
+    
+    def register_recording_file(self, camera_name: str, filename: str, start_time: datetime, 
+                              machine_trigger: Optional[str] = None) -> str:
+        """Register a new recording file"""
+        try:
+            file_id = os.path.basename(filename)
+            
+            file_info = {
+                "camera_name": camera_name,
+                "filename": filename,
+                "file_id": file_id,
+                "start_time": start_time.isoformat(),
+                "end_time": None,
+                "file_size_bytes": None,
+                "duration_seconds": None,
+                "machine_trigger": machine_trigger,
+                "status": "recording",
+                "created_at": datetime.now().isoformat()
+            }
+            
+            self.file_index["files"][file_id] = file_info
+            self._save_file_index()
+            
+            self.logger.info(f"Registered recording file: {file_id}")
+            return file_id
+            
+        except Exception as e:
+            self.logger.error(f"Error registering recording file: {e}")
+            return ""
+    
+    def finalize_recording_file(self, file_id: str, end_time: datetime, 
+                              duration_seconds: float, frame_count: Optional[int] = None) -> bool:
+        """Finalize a recording file after recording stops"""
+        try:
+            if file_id not in self.file_index["files"]:
+                self.logger.warning(f"File ID not found in index: {file_id}")
+                return False
+            
+            file_info = self.file_index["files"][file_id]
+            filename = file_info["filename"]
+            
+            # Update file information
+            file_info["end_time"] = end_time.isoformat()
+            file_info["duration_seconds"] = duration_seconds
+            file_info["status"] = "completed"
+            
+            # Get file size if file exists
+            if os.path.exists(filename):
+                file_info["file_size_bytes"] = os.path.getsize(filename)
+            
+            if frame_count is not None:
+                file_info["frame_count"] = frame_count
+            
+            self._save_file_index()
+            
+            self.logger.info(f"Finalized recording file: {file_id} (duration: {duration_seconds:.1f}s)")
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Error finalizing recording file: {e}")
+            return False
+    
+    def get_recording_files(self, camera_name: Optional[str] = None, 
+                          start_date: Optional[datetime] = None,
+                          end_date: Optional[datetime] = None,
+                          limit: Optional[int] = None) -> List[Dict[str, Any]]:
+        """Get list of recording files with optional filters"""
+        try:
+            files = []
+            
+            for file_id, file_info in self.file_index["files"].items():
+                # Filter by camera name
+                if camera_name and file_info["camera_name"] != camera_name:
+                    continue
+                
+                # Filter by date range
+                if start_date or end_date:
+                    file_start = datetime.fromisoformat(file_info["start_time"])
+                    if start_date and file_start < start_date:
+                        continue
+                    if end_date and file_start > end_date:
+                        continue
+                
+                files.append(file_info.copy())
+            
+            # Sort by start time (newest first)
+            files.sort(key=lambda x: x["start_time"], reverse=True)
+            
+            # Apply limit
+            if limit:
+                files = files[:limit]
+            
+            return files
+            
+        except Exception as e:
+            self.logger.error(f"Error getting recording files: {e}")
+            return []
+    
+    def get_storage_statistics(self) -> Dict[str, Any]:
+        """Get storage usage statistics"""
+        try:
+            stats = {
+                "base_path": self.storage_config.base_path,
+                "total_files": 0,
+                "total_size_bytes": 0,
+                "cameras": {},
+                "disk_usage": {}
+            }
+            
+            # Get disk usage for base path
+            if os.path.exists(self.storage_config.base_path):
+                disk_usage = shutil.disk_usage(self.storage_config.base_path)
+                stats["disk_usage"] = {
+                    "total_bytes": disk_usage.total,
+                    "used_bytes": disk_usage.used,
+                    "free_bytes": disk_usage.free,
+                    "used_percent": (disk_usage.used / disk_usage.total) * 100
+                }
+            
+            # Analyze files by camera
+            for file_info in self.file_index["files"].values():
+                camera_name = file_info["camera_name"]
+                
+                if camera_name not in stats["cameras"]:
+                    stats["cameras"][camera_name] = {
+                        "file_count": 0,
+                        "total_size_bytes": 0,
+                        "total_duration_seconds": 0
+                    }
+                
+                stats["total_files"] += 1
+                stats["cameras"][camera_name]["file_count"] += 1
+                
+                if file_info.get("file_size_bytes"):
+                    size = file_info["file_size_bytes"]
+                    stats["total_size_bytes"] += size
+                    stats["cameras"][camera_name]["total_size_bytes"] += size
+                
+                if file_info.get("duration_seconds"):
+                    duration = file_info["duration_seconds"]
+                    stats["cameras"][camera_name]["total_duration_seconds"] += duration
+            
+            return stats
+            
+        except Exception as e:
+            self.logger.error(f"Error getting storage statistics: {e}")
+            return {}
+    
+    def cleanup_old_files(self, max_age_days: Optional[int] = None) -> Dict[str, Any]:
+        """Clean up old recording files"""
+        if max_age_days is None:
+            max_age_days = self.storage_config.cleanup_older_than_days
+        
+        cutoff_date = datetime.now() - timedelta(days=max_age_days)
+        
+        cleanup_stats = {
+            "files_removed": 0,
+            "bytes_freed": 0,
+            "errors": []
+        }
+        
+        try:
+            files_to_remove = []
+            
+            # Find files older than cutoff date
+            for file_id, file_info in self.file_index["files"].items():
+                try:
+                    file_start = datetime.fromisoformat(file_info["start_time"])
+                    if file_start < cutoff_date and file_info["status"] == "completed":
+                        files_to_remove.append((file_id, file_info))
+                except Exception as e:
+                    cleanup_stats["errors"].append(f"Error parsing date for {file_id}: {e}")
+            
+            # Remove old files
+            for file_id, file_info in files_to_remove:
+                try:
+                    filename = file_info["filename"]
+                    
+                    # Remove physical file
+                    if os.path.exists(filename):
+                        file_size = os.path.getsize(filename)
+                        os.remove(filename)
+                        cleanup_stats["bytes_freed"] += file_size
+                        self.logger.info(f"Removed old file: {filename}")
+                    
+                    # Remove from index
+                    del self.file_index["files"][file_id]
+                    cleanup_stats["files_removed"] += 1
+                    
+                except Exception as e:
+                    error_msg = f"Error removing file {file_id}: {e}"
+                    cleanup_stats["errors"].append(error_msg)
+                    self.logger.error(error_msg)
+            
+            # Save updated index
+            if cleanup_stats["files_removed"] > 0:
+                self._save_file_index()
+            
+            self.logger.info(f"Cleanup completed: {cleanup_stats['files_removed']} files removed, "
+                           f"{cleanup_stats['bytes_freed']} bytes freed")
+            
+            return cleanup_stats
+            
+        except Exception as e:
+            self.logger.error(f"Error during cleanup: {e}")
+            cleanup_stats["errors"].append(str(e))
+            return cleanup_stats
+    
+    def get_file_info(self, file_id: str) -> Optional[Dict[str, Any]]:
+        """Get information about a specific file"""
+        return self.file_index["files"].get(file_id)
+    
+    def delete_file(self, file_id: str) -> bool:
+        """Delete a specific recording file"""
+        try:
+            if file_id not in self.file_index["files"]:
+                self.logger.warning(f"File ID not found: {file_id}")
+                return False
+            
+            file_info = self.file_index["files"][file_id]
+            filename = file_info["filename"]
+            
+            # Remove physical file
+            if os.path.exists(filename):
+                os.remove(filename)
+                self.logger.info(f"Deleted file: {filename}")
+            
+            # Remove from index
+            del self.file_index["files"][file_id]
+            self._save_file_index()
+            
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Error deleting file {file_id}: {e}")
+            return False
+    
+    def verify_storage_integrity(self) -> Dict[str, Any]:
+        """Verify storage integrity and fix issues"""
+        integrity_report = {
+            "total_files_in_index": len(self.file_index["files"]),
+            "missing_files": [],
+            "orphaned_files": [],
+            "corrupted_entries": [],
+            "fixed_issues": 0
+        }
+        
+        try:
+            # Check for missing files (in index but not on disk)
+            for file_id, file_info in list(self.file_index["files"].items()):
+                filename = file_info.get("filename")
+                if filename and not os.path.exists(filename):
+                    integrity_report["missing_files"].append(file_id)
+                    # Remove from index
+                    del self.file_index["files"][file_id]
+                    integrity_report["fixed_issues"] += 1
+            
+            # Check for orphaned files (on disk but not in index)
+            for camera_config in self.config.cameras:
+                storage_path = Path(camera_config.storage_path)
+                if storage_path.exists():
+                    for video_file in storage_path.glob("*.avi"):
+                        file_id = video_file.name
+                        if file_id not in self.file_index["files"]:
+                            integrity_report["orphaned_files"].append(str(video_file))
+            
+            # Save updated index if fixes were made
+            if integrity_report["fixed_issues"] > 0:
+                self._save_file_index()
+            
+            self.logger.info(f"Storage integrity check completed: {integrity_report['fixed_issues']} issues fixed")
+            
+            return integrity_report
+            
+        except Exception as e:
+            self.logger.error(f"Error during integrity check: {e}")
+            integrity_report["error"] = str(e)
+            return integrity_report
