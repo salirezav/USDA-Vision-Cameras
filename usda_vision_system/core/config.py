@@ -41,6 +41,31 @@ class CameraConfig:
     target_fps: float = 3.0
     enabled: bool = True
 
+    # Image Quality Settings
+    sharpness: int = 100  # 0-200, default 100 (no sharpening)
+    contrast: int = 100   # 0-200, default 100 (normal contrast)
+    saturation: int = 100 # 0-200, default 100 (normal saturation, color cameras only)
+    gamma: int = 100      # 0-300, default 100 (normal gamma)
+
+    # Noise Reduction
+    noise_filter_enabled: bool = True  # Enable basic noise filtering
+    denoise_3d_enabled: bool = False   # Enable advanced 3D denoising (may reduce FPS)
+
+    # Color Settings (for color cameras)
+    auto_white_balance: bool = True    # Enable automatic white balance
+    color_temperature_preset: int = 0  # 0=auto, 1=daylight, 2=fluorescent, etc.
+
+    # Advanced Settings
+    anti_flicker_enabled: bool = True  # Reduce artificial lighting flicker
+    light_frequency: int = 1           # 0=50Hz, 1=60Hz (match local power frequency)
+
+    # Bit Depth & Format
+    bit_depth: int = 8                 # 8, 10, 12, or 16 bits per channel
+
+    # HDR Settings
+    hdr_enabled: bool = False          # Enable High Dynamic Range
+    hdr_gain_mode: int = 0             # HDR processing mode
+
 
 @dataclass
 class StorageConfig:

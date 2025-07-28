@@ -77,19 +77,36 @@ class CameraRecorder:
             self.monoCamera = self.cap.sIspCapacity.bMonoSensor != 0
             self.logger.info(f"Camera type: {'Monochrome' if self.monoCamera else 'Color'}")
 
-            # Set output format
+            # Set output format based on bit depth configuration
             if self.monoCamera:
-                mvsdk.CameraSetIspOutFormat(self.hCamera, mvsdk.CAMERA_MEDIA_TYPE_MONO8)
+                if self.camera_config.bit_depth == 16:
+                    mvsdk.CameraSetIspOutFormat(self.hCamera, mvsdk.CAMERA_MEDIA_TYPE_MONO16)
+                elif self.camera_config.bit_depth == 12:
+                    mvsdk.CameraSetIspOutFormat(self.hCamera, mvsdk.CAMERA_MEDIA_TYPE_MONO12)
+                elif self.camera_config.bit_depth == 10:
+                    mvsdk.CameraSetIspOutFormat(self.hCamera, mvsdk.CAMERA_MEDIA_TYPE_MONO10)
+                else:  # Default to 8-bit
+                    mvsdk.CameraSetIspOutFormat(self.hCamera, mvsdk.CAMERA_MEDIA_TYPE_MONO8)
             else:
-                mvsdk.CameraSetIspOutFormat(self.hCamera, mvsdk.CAMERA_MEDIA_TYPE_BGR8)
+                if self.camera_config.bit_depth == 16:
+                    mvsdk.CameraSetIspOutFormat(self.hCamera, mvsdk.CAMERA_MEDIA_TYPE_RGB16)
+                elif self.camera_config.bit_depth == 12:
+                    mvsdk.CameraSetIspOutFormat(self.hCamera, mvsdk.CAMERA_MEDIA_TYPE_BGR12)
+                elif self.camera_config.bit_depth == 10:
+                    mvsdk.CameraSetIspOutFormat(self.hCamera, mvsdk.CAMERA_MEDIA_TYPE_BGR10)
+                else:  # Default to 8-bit
+                    mvsdk.CameraSetIspOutFormat(self.hCamera, mvsdk.CAMERA_MEDIA_TYPE_BGR8)
+
+            self.logger.info(f"Output format set to {self.camera_config.bit_depth}-bit {'mono' if self.monoCamera else 'color'}")
 
             # Configure camera settings
             self._configure_camera_settings()
 
-            # Allocate frame buffer
+            # Allocate frame buffer based on bit depth
+            bytes_per_pixel = self._get_bytes_per_pixel()
             self.frame_buffer_size = (self.cap.sResolutionRange.iWidthMax *
                                     self.cap.sResolutionRange.iHeightMax *
-                                    (1 if self.monoCamera else 3))
+                                    bytes_per_pixel)
             self.frame_buffer = mvsdk.CameraAlignMalloc(self.frame_buffer_size, 16)
 
             # Start camera
@@ -113,21 +130,115 @@ class CameraRecorder:
         try:
             # Set trigger mode (continuous acquisition)
             mvsdk.CameraSetTriggerMode(self.hCamera, 0)
-            
+
             # Set manual exposure
             mvsdk.CameraSetAeState(self.hCamera, 0)  # Disable auto exposure
             exposure_us = int(self.camera_config.exposure_ms * 1000)  # Convert ms to microseconds
             mvsdk.CameraSetExposureTime(self.hCamera, exposure_us)
-            
+
             # Set analog gain
             gain_value = int(self.camera_config.gain * 100)  # Convert to camera units
             mvsdk.CameraSetAnalogGain(self.hCamera, gain_value)
-            
+
+            # Configure image quality settings
+            self._configure_image_quality()
+
+            # Configure noise reduction
+            self._configure_noise_reduction()
+
+            # Configure color settings (for color cameras)
+            if not self.monoCamera:
+                self._configure_color_settings()
+
+            # Configure advanced settings
+            self._configure_advanced_settings()
+
             self.logger.info(f"Camera settings configured - Exposure: {exposure_us}μs, Gain: {gain_value}")
-            
+
         except Exception as e:
             self.logger.warning(f"Error configuring camera settings: {e}")
-    
+
+    def _configure_image_quality(self) -> None:
+        """Configure image quality settings"""
+        try:
+            # Set sharpness (0-200, default 100)
+            mvsdk.CameraSetSharpness(self.hCamera, self.camera_config.sharpness)
+
+            # Set contrast (0-200, default 100)
+            mvsdk.CameraSetContrast(self.hCamera, self.camera_config.contrast)
+
+            # Set gamma (0-300, default 100)
+            mvsdk.CameraSetGamma(self.hCamera, self.camera_config.gamma)
+
+            # Set saturation for color cameras (0-200, default 100)
+            if not self.monoCamera:
+                mvsdk.CameraSetSaturation(self.hCamera, self.camera_config.saturation)
+
+            self.logger.info(f"Image quality configured - Sharpness: {self.camera_config.sharpness}, "
+                           f"Contrast: {self.camera_config.contrast}, Gamma: {self.camera_config.gamma}")
+
+        except Exception as e:
+            self.logger.warning(f"Error configuring image quality: {e}")
+
+    def _configure_noise_reduction(self) -> None:
+        """Configure noise reduction settings"""
+        try:
+            # Enable/disable basic noise filter
+            mvsdk.CameraSetNoiseFilter(self.hCamera, self.camera_config.noise_filter_enabled)
+
+            # Configure 3D denoising if enabled
+            if self.camera_config.denoise_3d_enabled:
+                # Enable 3D denoising with default parameters (3 frames, equal weights)
+                mvsdk.CameraSetDenoise3DParams(self.hCamera, True, 3, None)
+                self.logger.info("3D denoising enabled")
+            else:
+                mvsdk.CameraSetDenoise3DParams(self.hCamera, False, 2, None)
+
+            self.logger.info(f"Noise reduction configured - Filter: {self.camera_config.noise_filter_enabled}, "
+                           f"3D Denoise: {self.camera_config.denoise_3d_enabled}")
+
+        except Exception as e:
+            self.logger.warning(f"Error configuring noise reduction: {e}")
+
+    def _configure_color_settings(self) -> None:
+        """Configure color settings for color cameras"""
+        try:
+            # Set white balance mode
+            mvsdk.CameraSetWbMode(self.hCamera, self.camera_config.auto_white_balance)
+
+            # Set color temperature preset if not using auto white balance
+            if not self.camera_config.auto_white_balance:
+                mvsdk.CameraSetPresetClrTemp(self.hCamera, self.camera_config.color_temperature_preset)
+
+            self.logger.info(f"Color settings configured - Auto WB: {self.camera_config.auto_white_balance}, "
+                           f"Color Temp Preset: {self.camera_config.color_temperature_preset}")
+
+        except Exception as e:
+            self.logger.warning(f"Error configuring color settings: {e}")
+
+    def _configure_advanced_settings(self) -> None:
+        """Configure advanced camera settings"""
+        try:
+            # Set anti-flicker
+            mvsdk.CameraSetAntiFlick(self.hCamera, self.camera_config.anti_flicker_enabled)
+
+            # Set light frequency (0=50Hz, 1=60Hz)
+            mvsdk.CameraSetLightFrequency(self.hCamera, self.camera_config.light_frequency)
+
+            # Configure HDR if enabled
+            if self.camera_config.hdr_enabled:
+                mvsdk.CameraSetHDR(self.hCamera, 1)  # Enable HDR
+                mvsdk.CameraSetHDRGainMode(self.hCamera, self.camera_config.hdr_gain_mode)
+                self.logger.info(f"HDR enabled with gain mode: {self.camera_config.hdr_gain_mode}")
+            else:
+                mvsdk.CameraSetHDR(self.hCamera, 0)  # Disable HDR
+
+            self.logger.info(f"Advanced settings configured - Anti-flicker: {self.camera_config.anti_flicker_enabled}, "
+                           f"Light Freq: {self.camera_config.light_frequency}Hz, HDR: {self.camera_config.hdr_enabled}")
+
+        except Exception as e:
+            self.logger.warning(f"Error configuring advanced settings: {e}")
+
     def start_recording(self, filename: str) -> bool:
         """Start video recording"""
         with self._lock:
