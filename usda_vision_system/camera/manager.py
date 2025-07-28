@@ -12,8 +12,8 @@ import logging
 from typing import Dict, List, Optional, Tuple, Any
 from datetime import datetime
 
-# Add python demo to path
-sys.path.append(os.path.join(os.path.dirname(__file__), "..", "..", "python demo"))
+# Add camera SDK to path
+sys.path.append(os.path.join(os.path.dirname(__file__), "..", "..", "camera_sdk"))
 import mvsdk
 
 from ..core.config import Config, CameraConfig

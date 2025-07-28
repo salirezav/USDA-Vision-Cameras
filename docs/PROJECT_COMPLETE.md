@@ -9,7 +9,7 @@ The USDA Vision Camera System has been successfully implemented, tested, and doc
 ### ✅ Core Functionality
 - **MQTT Integration**: Dual topic listening for machine states
 - **Automatic Recording**: Camera recording triggered by machine on/off states
-- **GigE Camera Support**: Full integration with python demo library
+- **GigE Camera Support**: Full integration with camera SDK library
 - **Multi-threading**: Concurrent MQTT + camera monitoring + recording
 - **File Management**: Timestamp-based naming in organized directories
 
@@ -50,11 +50,16 @@ USDA-Vision-Cameras/
 │   ├── storage/                # File management
 │   ├── api/                    # REST API server
 │   └── main.py                 # Application coordinator
-├── python demo/                # GigE camera library
+├── camera_sdk/                 # GigE camera SDK library
+├── demos/                      # Demo and example code
+│   ├── cv_grab*.py            # Camera SDK usage examples
+│   └── mqtt_*.py             # MQTT demo scripts
 ├── storage/                    # Recording storage
 │   ├── camera1/               # Camera 1 recordings
 │   └── camera2/               # Camera 2 recordings
-└── old tests/                  # Archived development files
+├── tests/                      # Test files and legacy tests
+├── notebooks/                  # Jupyter notebooks
+└── docs/                       # Documentation files
 ```
 
 ## 🚀 How to Deploy

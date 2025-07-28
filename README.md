@@ -10,7 +10,7 @@ This system integrates MQTT machine monitoring with automated video recording fr
 
 - **🔄 MQTT Integration**: Listens to multiple machine state topics
 - **📹 Automatic Recording**: Starts/stops recording based on machine states  
-- **📷 GigE Camera Support**: Uses python demo library (mvsdk) for camera control
+- **📷 GigE Camera Support**: Uses camera SDK library (mvsdk) for camera control
 - **⚡ Multi-threading**: Concurrent MQTT listening, camera monitoring, and recording
 - **🌐 REST API**: FastAPI server for dashboard integration
 - **📡 WebSocket Support**: Real-time status updates
@@ -18,6 +18,38 @@ This system integrates MQTT machine monitoring with automated video recording fr
 - **📝 Comprehensive Logging**: Detailed logging with rotation and error tracking
 - **⚙️ Configuration Management**: JSON-based configuration system
 - **🕐 Timezone Sync**: Proper time synchronization for Atlanta, Georgia
+
+## 📁 Project Structure
+
+```
+USDA-Vision-Cameras/
+├── README.md                    # Main documentation (this file)
+├── main.py                      # System entry point
+├── config.json                  # System configuration
+├── requirements.txt             # Python dependencies
+├── pyproject.toml              # UV package configuration
+├── start_system.sh             # Startup script
+├── setup_timezone.sh           # Time sync setup
+├── usda_vision_system/         # Main application
+│   ├── core/                   # Core functionality
+│   ├── mqtt/                   # MQTT integration
+│   ├── camera/                 # Camera management
+│   ├── storage/                # File management
+│   ├── api/                    # REST API server
+│   └── main.py                 # Application coordinator
+├── camera_sdk/                 # GigE camera SDK library
+├── demos/                      # Demo and example code
+│   ├── cv_grab*.py            # Camera SDK usage examples
+│   └── mqtt_*.py              # MQTT demo scripts
+├── tests/                      # Test files
+│   ├── test_*.py              # System tests
+│   └── legacy_tests/          # Archived development files
+├── notebooks/                  # Jupyter notebooks
+├── docs/                       # Documentation files
+└── storage/                    # Recording storage
+    ├── camera1/               # Camera 1 recordings
+    └── camera2/               # Camera 2 recordings
+```
 
 ## 🏗️ Architecture
 
@@ -46,7 +78,7 @@ This system integrates MQTT machine monitoring with automated video recording fr
 ## 📋 Prerequisites
 
 ### Hardware Requirements
-- GigE cameras compatible with python demo library
+- GigE cameras compatible with camera SDK library
 - Network connection to MQTT broker
 - Sufficient storage space for video recordings
 
@@ -90,7 +122,7 @@ pip install -r requirements.txt
 ```
 
 ### 3. Setup GigE Camera Library
-Ensure the `python demo` directory contains the mvsdk library for your GigE cameras. This should include:
+Ensure the `camera_sdk` directory contains the mvsdk library for your GigE cameras. This should include:
 - `mvsdk.py` - Python SDK wrapper
 - Camera driver libraries
 - Any camera-specific configuration files
@@ -519,13 +551,13 @@ python check_time.py
 # Check camera connections
 ping 192.168.1.165  # Replace with your camera IP
 
-# Verify python demo library
-ls -la "python demo/"
+# Verify camera SDK library
+ls -la "camera_sdk/"
 # Should contain mvsdk.py and related files
 
 # Test camera discovery manually
 python -c "
-import sys; sys.path.append('./python demo')
+import sys; sys.path.append('./camera_sdk')
 import mvsdk
 devices = mvsdk.CameraEnumerateDevice()
 print(f'Found {len(devices)} cameras')
@@ -579,7 +611,7 @@ df -h storage/
 
 # Test camera initialization
 python -c "
-import sys; sys.path.append('./python demo')
+import sys; sys.path.append('./camera_sdk')
 import mvsdk
 devices = mvsdk.CameraEnumerateDevice()
 if devices:

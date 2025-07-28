@@ -59,8 +59,8 @@ config_production.json
 .DS_Store
 Thumbs.db
 
-# Camera library cache
-python demo/__pycache__/
+# Camera SDK cache
+camera_sdk/__pycache__/
 
 # Test outputs
 test_output/

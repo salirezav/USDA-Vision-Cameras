@@ -38,10 +38,18 @@ python test_system.py
 
 if [ $? -ne 0 ]; then
     echo "❌ System tests failed. Please check the configuration."
-    read -p "Do you want to continue anyway? (y/N): " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        exit 1
+    # When running as a service, don't prompt for user input
+    if [ -t 0 ]; then
+        # Interactive mode - prompt user
+        read -p "Do you want to continue anyway? (y/N): " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            exit 1
+        fi
+    else
+        # Non-interactive mode (service) - continue with warning
+        echo "⚠️  Running in non-interactive mode. Continuing despite test failures..."
+        sleep 2
     fi
 fi
 

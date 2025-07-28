@@ -1,7 +1,7 @@
 """
 Camera Recorder for the USDA Vision Camera System.
 
-This module handles video recording from GigE cameras using the python demo library (mvsdk).
+This module handles video recording from GigE cameras using the camera SDK library (mvsdk).
 """
 
 import sys
@@ -16,8 +16,8 @@ from typing import Optional, Dict, Any
 from datetime import datetime
 from pathlib import Path
 
-# Add python demo to path
-sys.path.append(os.path.join(os.path.dirname(__file__), "..", "..", "python demo"))
+# Add camera SDK to path
+sys.path.append(os.path.join(os.path.dirname(__file__), "..", "..", "camera_sdk"))
 import mvsdk
 
 from ..core.config import CameraConfig

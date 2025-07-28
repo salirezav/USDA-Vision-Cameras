@@ -64,7 +64,7 @@ def test_camera_discovery():
     """Test camera discovery"""
     print("\nTesting camera discovery...")
     try:
-        sys.path.append("./python demo")
+        sys.path.append("./camera_sdk")
         import mvsdk
 
         devices = mvsdk.CameraEnumerateDevice()
@@ -82,7 +82,7 @@ def test_camera_discovery():
         return True
     except Exception as e:
         print(f"❌ Camera discovery failed: {e}")
-        print("   Make sure GigE cameras are connected and python demo library is available")
+        print("   Make sure GigE cameras are connected and camera SDK library is available")
         return False
 
 

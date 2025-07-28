@@ -12,8 +12,8 @@ import logging
 import contextlib
 from typing import Dict, List, Optional, Any
 
-# Add python demo to path
-sys.path.append(os.path.join(os.path.dirname(__file__), "..", "..", "python demo"))
+# Add camera SDK to path
+sys.path.append(os.path.join(os.path.dirname(__file__), "..", "..", "camera_sdk"))
 import mvsdk
 
 from ..core.config import Config
