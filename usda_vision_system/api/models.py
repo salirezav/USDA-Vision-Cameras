@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 
 class SystemStatusResponse(BaseModel):
     """System status response model"""
+
     system_started: bool
     mqtt_connected: bool
     last_mqtt_message: Optional[str] = None
@@ -23,6 +24,7 @@ class SystemStatusResponse(BaseModel):
 
 class MachineStatusResponse(BaseModel):
     """Machine status response model"""
+
     name: str
     state: str
     last_updated: str
@@ -30,8 +32,22 @@ class MachineStatusResponse(BaseModel):
     mqtt_topic: Optional[str] = None
 
 
+class MQTTStatusResponse(BaseModel):
+    """MQTT status response model"""
+
+    connected: bool
+    broker_host: str
+    broker_port: int
+    subscribed_topics: List[str]
+    last_message_time: Optional[str] = None
+    message_count: int
+    error_count: int
+    uptime_seconds: Optional[float] = None
+
+
 class CameraStatusResponse(BaseModel):
     """Camera status response model"""
+
     name: str
     status: str
     is_recording: bool
@@ -44,6 +60,7 @@ class CameraStatusResponse(BaseModel):
 
 class RecordingInfoResponse(BaseModel):
     """Recording information response model"""
+
     camera_name: str
     filename: str
     start_time: str
@@ -57,12 +74,16 @@ class RecordingInfoResponse(BaseModel):
 
 class StartRecordingRequest(BaseModel):
     """Start recording request model"""
-    camera_name: str
+
     filename: Optional[str] = None
+    exposure_ms: Optional[float] = Field(default=None, description="Exposure time in milliseconds")
+    gain: Optional[float] = Field(default=None, description="Camera gain value")
+    fps: Optional[float] = Field(default=None, description="Target frames per second")
 
 
 class StartRecordingResponse(BaseModel):
     """Start recording response model"""
+
     success: bool
     message: str
     filename: Optional[str] = None
@@ -70,11 +91,15 @@ class StartRecordingResponse(BaseModel):
 
 class StopRecordingRequest(BaseModel):
     """Stop recording request model"""
-    camera_name: str
+
+    # Note: This model is currently unused as the stop recording endpoint
+    # only requires the camera_name from the URL path parameter
+    pass
 
 
 class StopRecordingResponse(BaseModel):
     """Stop recording response model"""
+
     success: bool
     message: str
     duration_seconds: Optional[float] = None
@@ -82,6 +107,7 @@ class StopRecordingResponse(BaseModel):
 
 class StorageStatsResponse(BaseModel):
     """Storage statistics response model"""
+
     base_path: str
     total_files: int
     total_size_bytes: int
@@ -91,6 +117,7 @@ class StorageStatsResponse(BaseModel):
 
 class FileListRequest(BaseModel):
     """File list request model"""
+
     camera_name: Optional[str] = None
     start_date: Optional[str] = None
     end_date: Optional[str] = None
@@ -99,17 +126,20 @@ class FileListRequest(BaseModel):
 
 class FileListResponse(BaseModel):
     """File list response model"""
+
     files: List[Dict[str, Any]]
     total_count: int
 
 
 class CleanupRequest(BaseModel):
     """Cleanup request model"""
+
     max_age_days: Optional[int] = None
 
 
 class CleanupResponse(BaseModel):
     """Cleanup response model"""
+
     files_removed: int
     bytes_freed: int
     errors: List[str]
@@ -117,6 +147,7 @@ class CleanupResponse(BaseModel):
 
 class EventResponse(BaseModel):
     """Event response model"""
+
     event_type: str
     source: str
     data: Dict[str, Any]
@@ -125,6 +156,7 @@ class EventResponse(BaseModel):
 
 class WebSocketMessage(BaseModel):
     """WebSocket message model"""
+
     type: str
     data: Dict[str, Any]
     timestamp: Optional[str] = None
@@ -132,13 +164,53 @@ class WebSocketMessage(BaseModel):
 
 class ErrorResponse(BaseModel):
     """Error response model"""
+
     error: str
     details: Optional[str] = None
     timestamp: str = Field(default_factory=lambda: datetime.now().isoformat())
 
 
+class CameraRecoveryResponse(BaseModel):
+    """Camera recovery response model"""
+
+    success: bool
+    message: str
+    camera_name: str
+    operation: str
+    timestamp: str = Field(default_factory=lambda: datetime.now().isoformat())
+
+
+class CameraTestResponse(BaseModel):
+    """Camera connection test response model"""
+
+    success: bool
+    message: str
+    camera_name: str
+    timestamp: str = Field(default_factory=lambda: datetime.now().isoformat())
+
+
+class MQTTEventResponse(BaseModel):
+    """MQTT event response model"""
+
+    machine_name: str
+    topic: str
+    payload: str
+    normalized_state: str
+    timestamp: str
+    message_number: int
+
+
+class MQTTEventsHistoryResponse(BaseModel):
+    """MQTT events history response model"""
+
+    events: List[MQTTEventResponse]
+    total_events: int
+    last_updated: Optional[str] = None
+
+
 class SuccessResponse(BaseModel):
     """Success response model"""
+
     success: bool = True
     message: str
     data: Optional[Dict[str, Any]] = None

@@ -17,7 +17,7 @@
   },
   "system": {
     "camera_check_interval_seconds": 2,
-    "log_level": "INFO",
+    "log_level": "DEBUG",
     "log_file": "usda_vision_system.log",
     "api_host": "0.0.0.0",
     "api_port": 8000,
@@ -32,7 +32,20 @@
       "exposure_ms": 1.0,
       "gain": 3.5,
       "target_fps": 0,
-      "enabled": true
+      "enabled": true,
+      "sharpness": 120,
+      "contrast": 110,
+      "saturation": 100,
+      "gamma": 100,
+      "noise_filter_enabled": true,
+      "denoise_3d_enabled": false,
+      "auto_white_balance": true,
+      "color_temperature_preset": 0,
+      "anti_flicker_enabled": true,
+      "light_frequency": 1,
+      "bit_depth": 8,
+      "hdr_enabled": false,
+      "hdr_gain_mode": 0
     },
     {
       "name": "camera2",
@@ -41,7 +54,20 @@
       "exposure_ms": 1.0,
       "gain": 3.5,
       "target_fps": 0,
-      "enabled": true
+      "enabled": true,
+      "sharpness": 120,
+      "contrast": 110,
+      "saturation": 100,
+      "gamma": 100,
+      "noise_filter_enabled": true,
+      "denoise_3d_enabled": false,
+      "auto_white_balance": true,
+      "color_temperature_preset": 0,
+      "anti_flicker_enabled": true,
+      "light_frequency": 1,
+      "bit_depth": 8,
+      "hdr_enabled": false,
+      "hdr_gain_mode": 0
     }
   ]
 }

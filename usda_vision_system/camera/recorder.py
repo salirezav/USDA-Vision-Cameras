@@ -11,18 +11,44 @@ import time
 import logging
 import cv2
 import numpy as np
+import contextlib
 from typing import Optional, Dict, Any
 from datetime import datetime
 from pathlib import Path
 
 # Add python demo to path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'python demo'))
+sys.path.append(os.path.join(os.path.dirname(__file__), "..", "..", "python demo"))
 import mvsdk
 
 from ..core.config import CameraConfig
 from ..core.state_manager import StateManager
 from ..core.events import EventSystem, publish_recording_started, publish_recording_stopped, publish_recording_error
 from ..core.timezone_utils import now_atlanta, format_filename_timestamp
+from .sdk_config import ensure_sdk_initialized
+
+
+@contextlib.contextmanager
+def suppress_camera_errors():
+    """Context manager to temporarily suppress camera SDK error output"""
+    # Save original file descriptors
+    original_stderr = os.dup(2)
+    original_stdout = os.dup(1)
+
+    try:
+        # Redirect stderr and stdout to devnull
+        devnull = os.open(os.devnull, os.O_WRONLY)
+        os.dup2(devnull, 2)  # stderr
+        os.dup2(devnull, 1)  # stdout (in case SDK uses stdout)
+        os.close(devnull)
+
+        yield
+
+    finally:
+        # Restore original file descriptors
+        os.dup2(original_stderr, 2)
+        os.dup2(original_stdout, 1)
+        os.close(original_stderr)
+        os.close(original_stdout)
 
 
 class CameraRecorder:
@@ -35,41 +61,46 @@ class CameraRecorder:
         self.event_system = event_system
         self.storage_manager = storage_manager
         self.logger = logging.getLogger(f"{__name__}.{camera_config.name}")
-        
+
         # Camera handle and properties
         self.hCamera: Optional[int] = None
         self.cap = None
         self.monoCamera = False
         self.frame_buffer = None
         self.frame_buffer_size = 0
-        
+
         # Recording state
         self.recording = False
         self.video_writer: Optional[cv2.VideoWriter] = None
         self.output_filename: Optional[str] = None
         self.frame_count = 0
         self.start_time: Optional[datetime] = None
-        
+
         # Threading
         self._recording_thread: Optional[threading.Thread] = None
         self._stop_recording_event = threading.Event()
         self._lock = threading.RLock()
-        
-        # Initialize camera
-        self._initialize_camera()
-    
+
+        # Don't initialize camera immediately - use lazy initialization
+        # Camera will be initialized when recording starts
+        self.logger.info(f"Camera recorder created for: {self.camera_config.name} (lazy initialization)")
+
     def _initialize_camera(self) -> bool:
         """Initialize the camera with configured settings"""
         try:
             self.logger.info(f"Initializing camera: {self.camera_config.name}")
+
+            # Ensure SDK is initialized
+            ensure_sdk_initialized()
 
             # Check if device_info is valid
             if self.device_info is None:
                 self.logger.error("No device info provided for camera initialization")
                 return False
 
-            # Initialize camera
-            self.hCamera = mvsdk.CameraInit(self.device_info, -1, -1)
+            # Initialize camera (suppress output to avoid MVCAMAPI error messages)
+            with suppress_camera_errors():
+                self.hCamera = mvsdk.CameraInit(self.device_info, -1, -1)
             self.logger.info("Camera initialized successfully")
 
             # Get camera capabilities
@@ -104,9 +135,7 @@ class CameraRecorder:
 
             # Allocate frame buffer based on bit depth
             bytes_per_pixel = self._get_bytes_per_pixel()
-            self.frame_buffer_size = (self.cap.sResolutionRange.iWidthMax *
-                                    self.cap.sResolutionRange.iHeightMax *
-                                    bytes_per_pixel)
+            self.frame_buffer_size = self.cap.sResolutionRange.iWidthMax * self.cap.sResolutionRange.iHeightMax * bytes_per_pixel
             self.frame_buffer = mvsdk.CameraAlignMalloc(self.frame_buffer_size, 16)
 
             # Start camera
@@ -124,7 +153,30 @@ class CameraRecorder:
         except Exception as e:
             self.logger.error(f"Unexpected error during camera initialization: {e}")
             return False
-    
+
+    def _get_bytes_per_pixel(self) -> int:
+        """Calculate bytes per pixel based on camera type and bit depth"""
+        if self.monoCamera:
+            # Monochrome camera
+            if self.camera_config.bit_depth >= 16:
+                return 2  # 16-bit mono
+            elif self.camera_config.bit_depth >= 12:
+                return 2  # 12-bit mono (stored in 16-bit)
+            elif self.camera_config.bit_depth >= 10:
+                return 2  # 10-bit mono (stored in 16-bit)
+            else:
+                return 1  # 8-bit mono
+        else:
+            # Color camera
+            if self.camera_config.bit_depth >= 16:
+                return 6  # 16-bit RGB (2 bytes × 3 channels)
+            elif self.camera_config.bit_depth >= 12:
+                return 6  # 12-bit RGB (stored as 16-bit)
+            elif self.camera_config.bit_depth >= 10:
+                return 6  # 10-bit RGB (stored as 16-bit)
+            else:
+                return 3  # 8-bit RGB
+
     def _configure_camera_settings(self) -> None:
         """Configure camera settings from config"""
         try:
@@ -174,8 +226,7 @@ class CameraRecorder:
             if not self.monoCamera:
                 mvsdk.CameraSetSaturation(self.hCamera, self.camera_config.saturation)
 
-            self.logger.info(f"Image quality configured - Sharpness: {self.camera_config.sharpness}, "
-                           f"Contrast: {self.camera_config.contrast}, Gamma: {self.camera_config.gamma}")
+            self.logger.info(f"Image quality configured - Sharpness: {self.camera_config.sharpness}, " f"Contrast: {self.camera_config.contrast}, Gamma: {self.camera_config.gamma}")
 
         except Exception as e:
             self.logger.warning(f"Error configuring image quality: {e}")
@@ -194,8 +245,7 @@ class CameraRecorder:
             else:
                 mvsdk.CameraSetDenoise3DParams(self.hCamera, False, 2, None)
 
-            self.logger.info(f"Noise reduction configured - Filter: {self.camera_config.noise_filter_enabled}, "
-                           f"3D Denoise: {self.camera_config.denoise_3d_enabled}")
+            self.logger.info(f"Noise reduction configured - Filter: {self.camera_config.noise_filter_enabled}, " f"3D Denoise: {self.camera_config.denoise_3d_enabled}")
 
         except Exception as e:
             self.logger.warning(f"Error configuring noise reduction: {e}")
@@ -210,8 +260,7 @@ class CameraRecorder:
             if not self.camera_config.auto_white_balance:
                 mvsdk.CameraSetPresetClrTemp(self.hCamera, self.camera_config.color_temperature_preset)
 
-            self.logger.info(f"Color settings configured - Auto WB: {self.camera_config.auto_white_balance}, "
-                           f"Color Temp Preset: {self.camera_config.color_temperature_preset}")
+            self.logger.info(f"Color settings configured - Auto WB: {self.camera_config.auto_white_balance}, " f"Color Temp Preset: {self.camera_config.color_temperature_preset}")
 
         except Exception as e:
             self.logger.warning(f"Error configuring color settings: {e}")
@@ -225,19 +274,59 @@ class CameraRecorder:
             # Set light frequency (0=50Hz, 1=60Hz)
             mvsdk.CameraSetLightFrequency(self.hCamera, self.camera_config.light_frequency)
 
-            # Configure HDR if enabled
-            if self.camera_config.hdr_enabled:
-                mvsdk.CameraSetHDR(self.hCamera, 1)  # Enable HDR
-                mvsdk.CameraSetHDRGainMode(self.hCamera, self.camera_config.hdr_gain_mode)
-                self.logger.info(f"HDR enabled with gain mode: {self.camera_config.hdr_gain_mode}")
-            else:
-                mvsdk.CameraSetHDR(self.hCamera, 0)  # Disable HDR
+            # Configure HDR if enabled (check if HDR functions are available)
+            try:
+                if self.camera_config.hdr_enabled:
+                    mvsdk.CameraSetHDR(self.hCamera, 1)  # Enable HDR
+                    mvsdk.CameraSetHDRGainMode(self.hCamera, self.camera_config.hdr_gain_mode)
+                    self.logger.info(f"HDR enabled with gain mode: {self.camera_config.hdr_gain_mode}")
+                else:
+                    mvsdk.CameraSetHDR(self.hCamera, 0)  # Disable HDR
+            except AttributeError:
+                self.logger.info("HDR functions not available in this SDK version, skipping HDR configuration")
 
-            self.logger.info(f"Advanced settings configured - Anti-flicker: {self.camera_config.anti_flicker_enabled}, "
-                           f"Light Freq: {self.camera_config.light_frequency}Hz, HDR: {self.camera_config.hdr_enabled}")
+            self.logger.info(f"Advanced settings configured - Anti-flicker: {self.camera_config.anti_flicker_enabled}, " f"Light Freq: {self.camera_config.light_frequency}Hz, HDR: {self.camera_config.hdr_enabled}")
 
         except Exception as e:
             self.logger.warning(f"Error configuring advanced settings: {e}")
+
+    def update_camera_settings(self, exposure_ms: Optional[float] = None, gain: Optional[float] = None, target_fps: Optional[float] = None) -> bool:
+        """Update camera settings dynamically"""
+        if not self.hCamera:
+            self.logger.error("Camera not initialized")
+            return False
+
+        try:
+            settings_updated = False
+
+            # Update exposure if provided
+            if exposure_ms is not None:
+                mvsdk.CameraSetAeState(self.hCamera, 0)  # Disable auto exposure
+                exposure_us = int(exposure_ms * 1000)  # Convert ms to microseconds
+                mvsdk.CameraSetExposureTime(self.hCamera, exposure_us)
+                self.camera_config.exposure_ms = exposure_ms
+                self.logger.info(f"Updated exposure time: {exposure_ms}ms")
+                settings_updated = True
+
+            # Update gain if provided
+            if gain is not None:
+                gain_value = int(gain * 100)  # Convert to camera units
+                mvsdk.CameraSetAnalogGain(self.hCamera, gain_value)
+                self.camera_config.gain = gain
+                self.logger.info(f"Updated gain: {gain}x")
+                settings_updated = True
+
+            # Update target FPS if provided
+            if target_fps is not None:
+                self.camera_config.target_fps = target_fps
+                self.logger.info(f"Updated target FPS: {target_fps}")
+                settings_updated = True
+
+            return settings_updated
+
+        except Exception as e:
+            self.logger.error(f"Error updating camera settings: {e}")
+            return False
 
     def start_recording(self, filename: str) -> bool:
         """Start video recording"""
@@ -245,41 +334,44 @@ class CameraRecorder:
             if self.recording:
                 self.logger.warning("Already recording!")
                 return False
-            
+
+            # Initialize camera if not already initialized (lazy initialization)
             if not self.hCamera:
-                self.logger.error("Camera not initialized")
-                return False
-            
+                self.logger.info("Camera not initialized, initializing now...")
+                if not self._initialize_camera():
+                    self.logger.error("Failed to initialize camera for recording")
+                    return False
+
             try:
                 # Prepare output path
                 output_path = os.path.join(self.camera_config.storage_path, filename)
                 Path(self.camera_config.storage_path).mkdir(parents=True, exist_ok=True)
-                
+
                 # Test camera capture before starting recording
                 if not self._test_camera_capture():
                     self.logger.error("Camera capture test failed")
                     return False
-                
+
                 # Initialize recording state
                 self.output_filename = output_path
                 self.frame_count = 0
                 self.start_time = now_atlanta()  # Use Atlanta timezone
                 self._stop_recording_event.clear()
-                
+
                 # Start recording thread
                 self._recording_thread = threading.Thread(target=self._recording_loop, daemon=True)
                 self._recording_thread.start()
-                
+
                 # Update state
                 self.recording = True
                 recording_id = self.state_manager.start_recording(self.camera_config.name, output_path)
-                
+
                 # Publish event
                 publish_recording_started(self.camera_config.name, output_path)
-                
+
                 self.logger.info(f"Started recording to: {output_path}")
                 return True
-                
+
             except Exception as e:
                 self.logger.error(f"Error starting recording: {e}")
                 publish_recording_error(self.camera_config.name, str(e))
@@ -329,11 +421,11 @@ class CameraRecorder:
                     self.state_manager.stop_recording(self.output_filename, file_size, self.frame_count)
 
                 # Publish event
-                publish_recording_stopped(
-                    self.camera_config.name,
-                    self.output_filename or "unknown",
-                    duration
-                )
+                publish_recording_stopped(self.camera_config.name, self.output_filename or "unknown", duration)
+
+                # Clean up camera resources after recording (lazy cleanup)
+                self._cleanup_camera()
+                self.logger.info("Camera resources cleaned up after recording")
 
                 self.logger.info(f"Stopped recording - Duration: {duration:.1f}s, Frames: {self.frame_count}")
                 return True
@@ -402,18 +494,13 @@ class CameraRecorder:
             mvsdk.CameraReleaseImageBuffer(self.hCamera, pRawData)
 
             # Set up video writer
-            fourcc = cv2.VideoWriter_fourcc(*'XVID')
+            fourcc = cv2.VideoWriter_fourcc(*"XVID")
             frame_size = (FrameHead.iWidth, FrameHead.iHeight)
 
             # Use 30 FPS for video writer if target_fps is 0 (unlimited)
             video_fps = self.camera_config.target_fps if self.camera_config.target_fps > 0 else 30.0
 
-            self.video_writer = cv2.VideoWriter(
-                self.output_filename,
-                fourcc,
-                video_fps,
-                frame_size
-            )
+            self.video_writer = cv2.VideoWriter(self.output_filename, fourcc, video_fps, frame_size)
 
             if not self.video_writer.isOpened():
                 self.logger.error(f"Failed to open video writer for {self.output_filename}")
@@ -432,15 +519,34 @@ class CameraRecorder:
             # Convert the frame buffer memory address to a proper buffer
             # that numpy can work with using mvsdk.c_ubyte
             frame_data_buffer = (mvsdk.c_ubyte * frame_head.uBytes).from_address(self.frame_buffer)
-            frame_data = np.frombuffer(frame_data_buffer, dtype=np.uint8)
 
-            if self.monoCamera:
-                # Monochrome camera - convert to BGR
-                frame = frame_data.reshape((frame_head.iHeight, frame_head.iWidth))
-                frame_bgr = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
+            # Handle different bit depths
+            if self.camera_config.bit_depth > 8:
+                # For >8-bit, data is stored as 16-bit values
+                frame_data = np.frombuffer(frame_data_buffer, dtype=np.uint16)
+
+                if self.monoCamera:
+                    # Monochrome camera - convert to 8-bit BGR for video
+                    frame = frame_data.reshape((frame_head.iHeight, frame_head.iWidth))
+                    # Scale down to 8-bit (simple right shift)
+                    frame_8bit = (frame >> (self.camera_config.bit_depth - 8)).astype(np.uint8)
+                    frame_bgr = cv2.cvtColor(frame_8bit, cv2.COLOR_GRAY2BGR)
+                else:
+                    # Color camera - convert to 8-bit BGR
+                    frame = frame_data.reshape((frame_head.iHeight, frame_head.iWidth, 3))
+                    # Scale down to 8-bit
+                    frame_bgr = (frame >> (self.camera_config.bit_depth - 8)).astype(np.uint8)
             else:
-                # Color camera - already in BGR format
-                frame_bgr = frame_data.reshape((frame_head.iHeight, frame_head.iWidth, 3))
+                # 8-bit data
+                frame_data = np.frombuffer(frame_data_buffer, dtype=np.uint8)
+
+                if self.monoCamera:
+                    # Monochrome camera - convert to BGR
+                    frame = frame_data.reshape((frame_head.iHeight, frame_head.iWidth))
+                    frame_bgr = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
+                else:
+                    # Color camera - already in BGR format
+                    frame_bgr = frame_data.reshape((frame_head.iHeight, frame_head.iWidth, 3))
 
             return frame_bgr
 
@@ -459,6 +565,175 @@ class CameraRecorder:
 
         except Exception as e:
             self.logger.error(f"Error during recording cleanup: {e}")
+
+    def test_connection(self) -> bool:
+        """Test camera connection"""
+        try:
+            if self.hCamera is None:
+                self.logger.error("Camera not initialized")
+                return False
+
+            # Test connection using SDK function
+            result = mvsdk.CameraConnectTest(self.hCamera)
+            if result == 0:  # CAMERA_STATUS_SUCCESS
+                self.logger.info("Camera connection test passed")
+                return True
+            else:
+                self.logger.error(f"Camera connection test failed with code: {result}")
+                return False
+
+        except Exception as e:
+            self.logger.error(f"Error testing camera connection: {e}")
+            return False
+
+    def reconnect(self) -> bool:
+        """Attempt to reconnect to the camera"""
+        try:
+            if self.hCamera is None:
+                self.logger.error("Camera not initialized, cannot reconnect")
+                return False
+
+            self.logger.info("Attempting to reconnect camera...")
+
+            # Stop any ongoing operations
+            if self.recording:
+                self.logger.info("Stopping recording before reconnect")
+                self.stop_recording()
+
+            # Attempt reconnection using SDK function
+            result = mvsdk.CameraReConnect(self.hCamera)
+            if result == 0:  # CAMERA_STATUS_SUCCESS
+                self.logger.info("Camera reconnected successfully")
+
+                # Restart camera if it was playing
+                try:
+                    mvsdk.CameraPlay(self.hCamera)
+                    self.logger.info("Camera restarted after reconnection")
+                except Exception as e:
+                    self.logger.warning(f"Failed to restart camera after reconnection: {e}")
+
+                return True
+            else:
+                self.logger.error(f"Camera reconnection failed with code: {result}")
+                return False
+
+        except Exception as e:
+            self.logger.error(f"Error during camera reconnection: {e}")
+            return False
+
+    def restart_grab(self) -> bool:
+        """Restart the camera grab process"""
+        try:
+            if self.hCamera is None:
+                self.logger.error("Camera not initialized")
+                return False
+
+            self.logger.info("Restarting camera grab process...")
+
+            # Stop any ongoing recording
+            if self.recording:
+                self.logger.info("Stopping recording before restart")
+                self.stop_recording()
+
+            # Restart grab using SDK function
+            result = mvsdk.CameraRestartGrab(self.hCamera)
+            if result == 0:  # CAMERA_STATUS_SUCCESS
+                self.logger.info("Camera grab restarted successfully")
+                return True
+            else:
+                self.logger.error(f"Camera grab restart failed with code: {result}")
+                return False
+
+        except Exception as e:
+            self.logger.error(f"Error restarting camera grab: {e}")
+            return False
+
+    def reset_timestamp(self) -> bool:
+        """Reset camera timestamp"""
+        try:
+            if self.hCamera is None:
+                self.logger.error("Camera not initialized")
+                return False
+
+            self.logger.info("Resetting camera timestamp...")
+
+            result = mvsdk.CameraRstTimeStamp(self.hCamera)
+            if result == 0:  # CAMERA_STATUS_SUCCESS
+                self.logger.info("Camera timestamp reset successfully")
+                return True
+            else:
+                self.logger.error(f"Camera timestamp reset failed with code: {result}")
+                return False
+
+        except Exception as e:
+            self.logger.error(f"Error resetting camera timestamp: {e}")
+            return False
+
+    def full_reset(self) -> bool:
+        """Perform a full camera reset (uninitialize and reinitialize)"""
+        try:
+            self.logger.info("Performing full camera reset...")
+
+            # Stop any ongoing recording
+            if self.recording:
+                self.logger.info("Stopping recording before reset")
+                self.stop_recording()
+
+            # Store device info for reinitialization
+            device_info = self.device_info
+
+            # Cleanup current camera
+            self._cleanup_camera()
+
+            # Wait a moment
+            time.sleep(1)
+
+            # Reinitialize camera
+            self.device_info = device_info
+            success = self._initialize_camera()
+
+            if success:
+                self.logger.info("Full camera reset completed successfully")
+                return True
+            else:
+                self.logger.error("Full camera reset failed during reinitialization")
+                return False
+
+        except Exception as e:
+            self.logger.error(f"Error during full camera reset: {e}")
+            return False
+
+    def _cleanup_camera(self) -> None:
+        """Clean up camera resources"""
+        try:
+            # Stop camera if running
+            if self.hCamera is not None:
+                try:
+                    mvsdk.CameraStop(self.hCamera)
+                except:
+                    pass  # Ignore errors during stop
+
+                # Uninitialize camera
+                try:
+                    mvsdk.CameraUnInit(self.hCamera)
+                except:
+                    pass  # Ignore errors during uninit
+
+                self.hCamera = None
+
+            # Free frame buffer
+            if self.frame_buffer is not None:
+                try:
+                    mvsdk.CameraAlignFree(self.frame_buffer)
+                except:
+                    pass  # Ignore errors during free
+
+                self.frame_buffer = None
+
+            self.logger.info("Camera resources cleaned up")
+
+        except Exception as e:
+            self.logger.error(f"Error during camera cleanup: {e}")
 
     def cleanup(self) -> None:
         """Clean up camera resources"""
@@ -488,12 +763,4 @@ class CameraRecorder:
 
     def get_status(self) -> Dict[str, Any]:
         """Get recorder status"""
-        return {
-            "camera_name": self.camera_config.name,
-            "is_recording": self.recording,
-            "current_file": self.output_filename,
-            "frame_count": self.frame_count,
-            "start_time": self.start_time.isoformat() if self.start_time else None,
-            "camera_initialized": self.hCamera is not None,
-            "storage_path": self.camera_config.storage_path
-        }
+        return {"camera_name": self.camera_config.name, "is_recording": self.recording, "current_file": self.output_filename, "frame_count": self.frame_count, "start_time": self.start_time.isoformat() if self.start_time else None, "camera_initialized": self.hCamera is not None, "storage_path": self.camera_config.storage_path}

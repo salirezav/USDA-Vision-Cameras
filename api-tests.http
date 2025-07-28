@@ -8,30 +8,148 @@ GET http://localhost:8000/cameras/camera1/status
 
 ###
 
-### Get camera2 status  
+### Get camera2 status
 GET http://localhost:8000/cameras/camera2/status
 
 ###
+### RECORDING TESTS
+### Note: All filenames will automatically have datetime prefix added
+### Format: YYYYMMDD_HHMMSS_filename.avi (or auto-generated if no filename)
+###
+### FPS Behavior:
+### - fps > 0: Capture at specified frame rate
+### - fps = 0: Capture at MAXIMUM possible speed (no delay between frames)
+### - fps omitted: Uses camera config default (usually 3.0 fps)
+### - Video files saved with 30 FPS metadata when fps=0 for proper playback
+###
 
-### Start recording camera1
+### Start recording camera1 (basic)
 POST http://localhost:8000/cameras/camera1/start-recording
 Content-Type: application/json
 
 {
-  "camera_name": "camera1",
-  "filename": "manual_test_cam1.avi"
+  "filename": "manual22_test_cam1.avi"
 }
 
 ###
 
-### Start recording camera2
+### Start recording camera1 (with camera settings)
+POST http://localhost:8000/cameras/camera1/start-recording
+Content-Type: application/json
+
+{
+  "filename": "test_with_settings.avi",
+  "exposure_ms": 2.0,
+  "gain": 4.0,
+  "fps": 0
+}
+
+###
+
+### Start recording camera2 (basic)
 POST http://localhost:8000/cameras/camera2/start-recording
 Content-Type: application/json
 
 {
-  "camera_name": "camera2", 
   "filename": "manual_test_cam2.avi"
 }
+
+###
+
+### Start recording camera2 (with different settings)
+POST http://localhost:8000/cameras/camera2/start-recording
+Content-Type: application/json
+
+{
+  "filename": "high_fps_test.avi",
+  "exposure_ms": 0.5,
+  "gain": 2.5,
+  "fps": 10.0
+}
+
+###
+
+### Start recording camera1 (no filename, only settings)
+POST http://localhost:8000/cameras/camera1/start-recording
+Content-Type: application/json
+
+{
+  "exposure_ms": 1.5,
+  "gain": 3.0,
+  "fps": 7.0
+}
+
+###
+
+### Start recording camera1 (only filename, no settings)
+POST http://localhost:8000/cameras/camera1/start-recording
+Content-Type: application/json
+
+{
+  "filename": "just_filename_test.avi"
+}
+
+###
+
+### Start recording camera2 (only exposure setting)
+POST http://localhost:8000/cameras/camera2/start-recording
+Content-Type: application/json
+
+{
+  "exposure_ms": 3.0
+}
+
+###
+
+### Start recording camera1 (only gain setting)
+POST http://localhost:8000/cameras/camera1/start-recording
+Content-Type: application/json
+
+{
+  "gain": 5.5
+}
+
+###
+
+### Start recording camera2 (only fps setting)
+POST http://localhost:8000/cameras/camera2/start-recording
+Content-Type: application/json
+
+{
+  "fps": 15.0
+}
+
+###
+
+### Start recording camera1 (maximum fps - no delay)
+POST http://localhost:8000/cameras/camera1/start-recording
+Content-Type: application/json
+
+{
+  "filename": "max_fps_test.avi",
+  "fps": 0
+}
+
+###
+
+### Start recording camera2 (maximum fps with settings)
+POST http://localhost:8000/cameras/camera2/start-recording
+Content-Type: application/json
+
+{
+  "filename": "max_fps_low_exposure.avi",
+  "exposure_ms": 0.1,
+  "gain": 1.0,
+  "fps": 0
+}
+
+###
+
+### Start recording camera1 (empty body - all defaults)
+POST http://localhost:8000/cameras/camera1/start-recording
+Content-Type: application/json
+
+{}
 
 ###
 
@@ -43,6 +161,8 @@ POST http://localhost:8000/cameras/camera1/stop-recording
 ### Stop camera2 recording
 POST http://localhost:8000/cameras/camera2/stop-recording
 
+###
+### SYSTEM STATUS AND STORAGE TESTS
 ###
 
 ### Get all cameras status
@@ -78,3 +198,111 @@ Content-Type: application/json
 
 ### Health check
 GET http://localhost:8000/health
+
+###
+### CAMERA RECOVERY AND DIAGNOSTICS TESTS
+###
+### These endpoints help recover cameras that have failed to initialize or lost connection.
+###
+### Recovery Methods (in order of severity):
+### 1. test-connection: Test if camera connection is working
+### 2. reconnect: Soft reconnection using CameraReConnect()
+### 3. restart-grab: Restart grab process using CameraRestartGrab()
+### 4. reset-timestamp: Reset camera timestamp using CameraRstTimeStamp()
+### 5. full-reset: Hard reset - uninitialize and reinitialize camera
+### 6. reinitialize: Complete reinitialization for cameras that never initialized
+###
+### Recommended troubleshooting order:
+### 1. Start with test-connection to diagnose the issue
+### 2. Try reconnect first (most common fix)
+### 3. If reconnect fails, try restart-grab
+### 4. If still failing, try full-reset
+### 5. Use reinitialize only for cameras that failed initial setup
+###
+
+### Test camera1 connection
+POST http://localhost:8000/cameras/camera1/test-connection
+
+###
+
+### Test camera2 connection
+POST http://localhost:8000/cameras/camera2/test-connection
+
+###
+
+### Reconnect camera1 (soft recovery)
+POST http://localhost:8000/cameras/camera1/reconnect
+
+###
+
+### Reconnect camera2 (soft recovery)
+POST http://localhost:8000/cameras/camera2/reconnect
+
+###
+
+### Restart camera1 grab process
+POST http://localhost:8000/cameras/camera1/restart-grab
+
+###
+
+### Restart camera2 grab process
+POST http://localhost:8000/cameras/camera2/restart-grab
+
+###
+
+### Reset camera1 timestamp
+POST http://localhost:8000/cameras/camera1/reset-timestamp
+
+###
+
+### Reset camera2 timestamp
+POST http://localhost:8000/cameras/camera2/reset-timestamp
+
+###
+
+### Full reset camera1 (hard recovery - uninitialize and reinitialize)
+POST http://localhost:8000/cameras/camera1/full-reset
+
+###
+
+### Full reset camera2 (hard recovery - uninitialize and reinitialize)
+POST http://localhost:8000/cameras/camera2/full-reset
+
+###
+
+### Reinitialize camera1 (for cameras that failed to initialize)
+POST http://localhost:8000/cameras/camera1/reinitialize
+
+###
+
+### Reinitialize camera2 (for cameras that failed to initialize)
+POST http://localhost:8000/cameras/camera2/reinitialize
+
+###
+### RECOVERY WORKFLOW EXAMPLES
+###
+
+### Example 1: Basic troubleshooting workflow for camera1
+### Step 1: Test connection
+POST http://localhost:8000/cameras/camera1/test-connection
+
+### Step 2: If test fails, try reconnect
+# POST http://localhost:8000/cameras/camera1/reconnect
+
+### Step 3: If reconnect fails, try restart grab
+# POST http://localhost:8000/cameras/camera1/restart-grab
+
+### Step 4: If still failing, try full reset
+# POST http://localhost:8000/cameras/camera1/full-reset
+
+### Step 5: If camera never initialized, try reinitialize
+# POST http://localhost:8000/cameras/camera1/reinitialize
+
+###
+
+### Example 2: Quick recovery sequence for camera2
+### Try reconnect first (most common fix)
+POST http://localhost:8000/cameras/camera2/reconnect
+
+### If that doesn't work, try full reset
+# POST http://localhost:8000/cameras/camera2/full-reset
