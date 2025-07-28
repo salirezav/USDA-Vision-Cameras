@@ -13,7 +13,7 @@ import threading
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Depends, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 import uvicorn
 
 from ..core.config import Config
@@ -241,6 +241,149 @@ class APIServer:
                     return CameraTestResponse(success=False, message=f"Camera {camera_name} connection test failed", camera_name=camera_name)
             except Exception as e:
                 self.logger.error(f"Error testing camera connection: {e}")
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @self.app.get("/cameras/{camera_name}/stream")
+        async def camera_stream(camera_name: str):
+            """Get live MJPEG stream from camera"""
+            try:
+                if not self.camera_manager:
+                    raise HTTPException(status_code=503, detail="Camera manager not available")
+
+                # Get camera streamer
+                streamer = self.camera_manager.get_camera_streamer(camera_name)
+                if not streamer:
+                    raise HTTPException(status_code=404, detail=f"Camera {camera_name} not found")
+
+                # Start streaming if not already active
+                if not streamer.is_streaming():
+                    success = streamer.start_streaming()
+                    if not success:
+                        raise HTTPException(status_code=500, detail=f"Failed to start streaming for camera {camera_name}")
+
+                # Return MJPEG stream
+                return StreamingResponse(streamer.get_frame_generator(), media_type="multipart/x-mixed-replace; boundary=frame")
+
+            except HTTPException:
+                raise
+            except Exception as e:
+                self.logger.error(f"Error starting camera stream: {e}")
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @self.app.post("/cameras/{camera_name}/start-stream")
+        async def start_camera_stream(camera_name: str):
+            """Start streaming for a camera"""
+            try:
+                if not self.camera_manager:
+                    raise HTTPException(status_code=503, detail="Camera manager not available")
+
+                success = self.camera_manager.start_camera_streaming(camera_name)
+                if success:
+                    return {"success": True, "message": f"Started streaming for camera {camera_name}"}
+                else:
+                    return {"success": False, "message": f"Failed to start streaming for camera {camera_name}"}
+
+            except Exception as e:
+                self.logger.error(f"Error starting camera stream: {e}")
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @self.app.post("/cameras/{camera_name}/stop-stream")
+        async def stop_camera_stream(camera_name: str):
+            """Stop streaming for a camera"""
+            try:
+                if not self.camera_manager:
+                    raise HTTPException(status_code=503, detail="Camera manager not available")
+
+                success = self.camera_manager.stop_camera_streaming(camera_name)
+                if success:
+                    return {"success": True, "message": f"Stopped streaming for camera {camera_name}"}
+                else:
+                    return {"success": False, "message": f"Failed to stop streaming for camera {camera_name}"}
+
+            except Exception as e:
+                self.logger.error(f"Error stopping camera stream: {e}")
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @self.app.get("/cameras/{camera_name}/config", response_model=CameraConfigResponse)
+        async def get_camera_config(camera_name: str):
+            """Get camera configuration"""
+            try:
+                if not self.camera_manager:
+                    raise HTTPException(status_code=503, detail="Camera manager not available")
+
+                config = self.camera_manager.get_camera_config(camera_name)
+                if not config:
+                    raise HTTPException(status_code=404, detail=f"Camera {camera_name} not found")
+
+                return CameraConfigResponse(
+                    name=config.name,
+                    machine_topic=config.machine_topic,
+                    storage_path=config.storage_path,
+                    enabled=config.enabled,
+                    exposure_ms=config.exposure_ms,
+                    gain=config.gain,
+                    target_fps=config.target_fps,
+                    sharpness=config.sharpness,
+                    contrast=config.contrast,
+                    saturation=config.saturation,
+                    gamma=config.gamma,
+                    noise_filter_enabled=config.noise_filter_enabled,
+                    denoise_3d_enabled=config.denoise_3d_enabled,
+                    auto_white_balance=config.auto_white_balance,
+                    color_temperature_preset=config.color_temperature_preset,
+                    anti_flicker_enabled=config.anti_flicker_enabled,
+                    light_frequency=config.light_frequency,
+                    bit_depth=config.bit_depth,
+                    hdr_enabled=config.hdr_enabled,
+                    hdr_gain_mode=config.hdr_gain_mode,
+                )
+
+            except HTTPException:
+                raise
+            except Exception as e:
+                self.logger.error(f"Error getting camera config: {e}")
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @self.app.put("/cameras/{camera_name}/config")
+        async def update_camera_config(camera_name: str, request: CameraConfigRequest):
+            """Update camera configuration"""
+            try:
+                if not self.camera_manager:
+                    raise HTTPException(status_code=503, detail="Camera manager not available")
+
+                # Convert request to dict, excluding None values
+                config_updates = {k: v for k, v in request.dict().items() if v is not None}
+
+                if not config_updates:
+                    raise HTTPException(status_code=400, detail="No configuration updates provided")
+
+                success = self.camera_manager.update_camera_config(camera_name, **config_updates)
+                if success:
+                    return {"success": True, "message": f"Camera {camera_name} configuration updated", "updated_settings": list(config_updates.keys())}
+                else:
+                    raise HTTPException(status_code=404, detail=f"Camera {camera_name} not found or update failed")
+
+            except HTTPException:
+                raise
+            except Exception as e:
+                self.logger.error(f"Error updating camera config: {e}")
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @self.app.post("/cameras/{camera_name}/apply-config")
+        async def apply_camera_config(camera_name: str):
+            """Apply current configuration to active camera (requires camera restart)"""
+            try:
+                if not self.camera_manager:
+                    raise HTTPException(status_code=503, detail="Camera manager not available")
+
+                success = self.camera_manager.apply_camera_config(camera_name)
+                if success:
+                    return {"success": True, "message": f"Configuration applied to camera {camera_name}"}
+                else:
+                    return {"success": False, "message": f"Failed to apply configuration to camera {camera_name}"}
+
+            except Exception as e:
+                self.logger.error(f"Error applying camera config: {e}")
                 raise HTTPException(status_code=500, detail=str(e))
 
         @self.app.post("/cameras/{camera_name}/reconnect", response_model=CameraRecoveryResponse)

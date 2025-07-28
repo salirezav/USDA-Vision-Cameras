@@ -22,6 +22,7 @@ from ..core.events import EventSystem, EventType, Event, publish_camera_status_c
 from ..core.timezone_utils import format_filename_timestamp
 from .recorder import CameraRecorder
 from .monitor import CameraMonitor
+from .streamer import CameraStreamer
 from .sdk_config import initialize_sdk_with_suppression
 
 
@@ -40,6 +41,7 @@ class CameraManager:
         # Camera management
         self.available_cameras: List[Any] = []  # mvsdk camera device info
         self.camera_recorders: Dict[str, CameraRecorder] = {}  # camera_name -> recorder
+        self.camera_streamers: Dict[str, CameraStreamer] = {}  # camera_name -> streamer
         self.camera_monitor: Optional[CameraMonitor] = None
 
         # Threading
@@ -71,6 +73,9 @@ class CameraManager:
         # Initialize camera recorders
         self._initialize_recorders()
 
+        # Initialize camera streamers
+        self._initialize_streamers()
+
         self.logger.info("Camera manager started successfully")
         return True
 
@@ -92,6 +97,12 @@ class CameraManager:
                 if recorder.is_recording():
                     recorder.stop_recording()
                 recorder.cleanup()
+
+        # Stop all active streaming
+        with self._lock:
+            for streamer in self.camera_streamers.values():
+                if streamer.is_streaming():
+                    streamer.stop_streaming()
 
         self.logger.info("Camera manager stopped")
 
@@ -427,3 +438,104 @@ class CameraManager:
                 self.logger.error(f"Error reinitializing camera {camera_name}: {e}")
                 self.state_manager.update_camera_status(name=camera_name, status="error", device_info={"error": str(e)})
                 return False
+
+    def _initialize_streamers(self) -> None:
+        """Initialize camera streamers for configured cameras"""
+        with self._lock:
+            for camera_config in self.config.cameras:
+                if not camera_config.enabled:
+                    continue
+
+                try:
+                    # Find matching physical camera
+                    device_info = self._find_camera_device(camera_config.name)
+                    if device_info is None:
+                        self.logger.warning(f"No physical camera found for streaming: {camera_config.name}")
+                        continue
+
+                    # Create streamer
+                    streamer = CameraStreamer(camera_config=camera_config, device_info=device_info, state_manager=self.state_manager, event_system=self.event_system)
+
+                    # Add streamer to the list
+                    self.camera_streamers[camera_config.name] = streamer
+                    self.logger.info(f"Successfully created streamer for camera: {camera_config.name}")
+
+                except Exception as e:
+                    self.logger.error(f"Error initializing streamer for {camera_config.name}: {e}")
+
+    def get_camera_streamer(self, camera_name: str) -> Optional[CameraStreamer]:
+        """Get camera streamer for a specific camera"""
+        return self.camera_streamers.get(camera_name)
+
+    def start_camera_streaming(self, camera_name: str) -> bool:
+        """Start streaming for a specific camera"""
+        streamer = self.camera_streamers.get(camera_name)
+        if not streamer:
+            self.logger.error(f"Camera streamer not found: {camera_name}")
+            return False
+
+        return streamer.start_streaming()
+
+    def stop_camera_streaming(self, camera_name: str) -> bool:
+        """Stop streaming for a specific camera"""
+        streamer = self.camera_streamers.get(camera_name)
+        if not streamer:
+            self.logger.error(f"Camera streamer not found: {camera_name}")
+            return False
+
+        return streamer.stop_streaming()
+
+    def is_camera_streaming(self, camera_name: str) -> bool:
+        """Check if a camera is currently streaming"""
+        streamer = self.camera_streamers.get(camera_name)
+        if not streamer:
+            return False
+
+        return streamer.is_streaming()
+
+    def get_camera_config(self, camera_name: str) -> Optional[CameraConfig]:
+        """Get camera configuration"""
+        return self.config.get_camera_by_name(camera_name)
+
+    def update_camera_config(self, camera_name: str, **kwargs) -> bool:
+        """Update camera configuration and save to config file"""
+        try:
+            # Update the configuration
+            success = self.config.update_camera_config(camera_name, **kwargs)
+            if success:
+                self.logger.info(f"Updated configuration for camera {camera_name}: {kwargs}")
+                return True
+            else:
+                self.logger.error(f"Failed to update configuration for camera {camera_name}")
+                return False
+        except Exception as e:
+            self.logger.error(f"Error updating camera configuration: {e}")
+            return False
+
+    def apply_camera_config(self, camera_name: str) -> bool:
+        """Apply current configuration to active camera (requires camera restart)"""
+        try:
+            # Get the recorder for this camera
+            recorder = self.camera_recorders.get(camera_name)
+            if not recorder:
+                self.logger.error(f"Camera recorder not found: {camera_name}")
+                return False
+
+            # Stop recording if active
+            was_recording = recorder.is_recording()
+            if was_recording:
+                recorder.stop_recording()
+
+            # Reinitialize the camera with new settings
+            success = self.reinitialize_failed_camera(camera_name)
+
+            if success:
+                self.logger.info(f"Successfully applied configuration to camera {camera_name}")
+                return True
+            else:
+                self.logger.error(f"Failed to apply configuration to camera {camera_name}")
+                return False
+
+        except Exception as e:
+            self.logger.error(f"Error applying camera configuration: {e}")
+            return False

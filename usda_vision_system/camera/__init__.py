@@ -8,5 +8,6 @@ using the camera SDK library (mvsdk).
 from .manager import CameraManager
 from .recorder import CameraRecorder
 from .monitor import CameraMonitor
+from .streamer import CameraStreamer
 
-__all__ = ["CameraManager", "CameraRecorder", "CameraMonitor"]
+__all__ = ["CameraManager", "CameraRecorder", "CameraMonitor", "CameraStreamer"]

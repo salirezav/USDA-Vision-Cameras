@@ -328,6 +328,117 @@ class CameraRecorder:
             self.logger.error(f"Error updating camera settings: {e}")
             return False
 
+    def update_advanced_camera_settings(self, **kwargs) -> bool:
+        """Update advanced camera settings dynamically"""
+        if not self.hCamera:
+            self.logger.error("Camera not initialized")
+            return False
+
+        try:
+            settings_updated = False
+
+            # Update basic settings
+            if "exposure_ms" in kwargs and kwargs["exposure_ms"] is not None:
+                mvsdk.CameraSetAeState(self.hCamera, 0)
+                exposure_us = int(kwargs["exposure_ms"] * 1000)
+                mvsdk.CameraSetExposureTime(self.hCamera, exposure_us)
+                self.camera_config.exposure_ms = kwargs["exposure_ms"]
+                settings_updated = True
+
+            if "gain" in kwargs and kwargs["gain"] is not None:
+                gain_value = int(kwargs["gain"] * 100)
+                mvsdk.CameraSetAnalogGain(self.hCamera, gain_value)
+                self.camera_config.gain = kwargs["gain"]
+                settings_updated = True
+
+            if "target_fps" in kwargs and kwargs["target_fps"] is not None:
+                self.camera_config.target_fps = kwargs["target_fps"]
+                settings_updated = True
+
+            # Update image quality settings
+            if "sharpness" in kwargs and kwargs["sharpness"] is not None:
+                mvsdk.CameraSetSharpness(self.hCamera, kwargs["sharpness"])
+                self.camera_config.sharpness = kwargs["sharpness"]
+                settings_updated = True
+
+            if "contrast" in kwargs and kwargs["contrast"] is not None:
+                mvsdk.CameraSetContrast(self.hCamera, kwargs["contrast"])
+                self.camera_config.contrast = kwargs["contrast"]
+                settings_updated = True
+
+            if "gamma" in kwargs and kwargs["gamma"] is not None:
+                mvsdk.CameraSetGamma(self.hCamera, kwargs["gamma"])
+                self.camera_config.gamma = kwargs["gamma"]
+                settings_updated = True
+
+            if "saturation" in kwargs and kwargs["saturation"] is not None and not self.monoCamera:
+                mvsdk.CameraSetSaturation(self.hCamera, kwargs["saturation"])
+                self.camera_config.saturation = kwargs["saturation"]
+                settings_updated = True
+
+            # Update noise reduction settings
+            if "noise_filter_enabled" in kwargs and kwargs["noise_filter_enabled"] is not None:
+                # Note: Noise filter settings may require camera restart to take effect
+                self.camera_config.noise_filter_enabled = kwargs["noise_filter_enabled"]
+                settings_updated = True
+
+            if "denoise_3d_enabled" in kwargs and kwargs["denoise_3d_enabled"] is not None:
+                # Note: 3D denoise settings may require camera restart to take effect
+                self.camera_config.denoise_3d_enabled = kwargs["denoise_3d_enabled"]
+                settings_updated = True
+
+            # Update color settings (for color cameras)
+            if not self.monoCamera:
+                if "auto_white_balance" in kwargs and kwargs["auto_white_balance"] is not None:
+                    mvsdk.CameraSetWbMode(self.hCamera, kwargs["auto_white_balance"])
+                    self.camera_config.auto_white_balance = kwargs["auto_white_balance"]
+                    settings_updated = True
+
+                if "color_temperature_preset" in kwargs and kwargs["color_temperature_preset"] is not None:
+                    if not self.camera_config.auto_white_balance:
+                        mvsdk.CameraSetPresetClrTemp(self.hCamera, kwargs["color_temperature_preset"])
+                    self.camera_config.color_temperature_preset = kwargs["color_temperature_preset"]
+                    settings_updated = True
+
+            # Update advanced settings
+            if "anti_flicker_enabled" in kwargs and kwargs["anti_flicker_enabled"] is not None:
+                mvsdk.CameraSetAntiFlick(self.hCamera, kwargs["anti_flicker_enabled"])
+                self.camera_config.anti_flicker_enabled = kwargs["anti_flicker_enabled"]
+                settings_updated = True
+
+            if "light_frequency" in kwargs and kwargs["light_frequency"] is not None:
+                mvsdk.CameraSetLightFrequency(self.hCamera, kwargs["light_frequency"])
+                self.camera_config.light_frequency = kwargs["light_frequency"]
+                settings_updated = True
+
+            # Update HDR settings (if supported)
+            if "hdr_enabled" in kwargs and kwargs["hdr_enabled"] is not None:
+                try:
+                    mvsdk.CameraSetHDR(self.hCamera, 1 if kwargs["hdr_enabled"] else 0)
+                    self.camera_config.hdr_enabled = kwargs["hdr_enabled"]
+                    settings_updated = True
+                except AttributeError:
+                    self.logger.warning("HDR functions not available in this SDK version")
+
+            if "hdr_gain_mode" in kwargs and kwargs["hdr_gain_mode"] is not None:
+                try:
+                    if self.camera_config.hdr_enabled:
+                        mvsdk.CameraSetHDRGainMode(self.hCamera, kwargs["hdr_gain_mode"])
+                    self.camera_config.hdr_gain_mode = kwargs["hdr_gain_mode"]
+                    settings_updated = True
+                except AttributeError:
+                    self.logger.warning("HDR gain mode functions not available in this SDK version")
+
+            if settings_updated:
+                updated_settings = [k for k, v in kwargs.items() if v is not None]
+                self.logger.info(f"Updated camera settings: {updated_settings}")
+
+            return settings_updated
+
+        except Exception as e:
+            self.logger.error(f"Error updating advanced camera settings: {e}")
+            return False
+
     def start_recording(self, filename: str) -> bool:
         """Start video recording"""
         with self._lock:

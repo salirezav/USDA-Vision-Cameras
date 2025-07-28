@@ -1,14 +1,74 @@
 ###############################################################################
 # USDA Vision Camera System - Complete API Endpoints Documentation
-# Base URL: http://localhost:8000
+#
+# CONFIGURATION:
+# - Default Base URL: http://localhost:8000 (local development)
+# - Production Base URL: http://vision:8000 (when using hostname 'vision')
+# - Custom hostname: Update @baseUrl variable below
+#
+# HOSTNAME SETUP:
+# To use 'vision' hostname instead of 'localhost':
+# 1. Add to /etc/hosts: 127.0.0.1 vision
+# 2. Or configure DNS to point 'vision' to the server IP
+# 3. Update camera_preview.html: API_BASE = 'http://vision:8000'
 ###############################################################################
+
+# Base URL Configuration - Change this to match your setup
+@baseUrl = http://vision:8000
+# Alternative configurations:
+# @baseUrl = http://localhost:8000        # Local development
+# @baseUrl = http://192.168.1.100:8000    # Specific IP address
+# @baseUrl = http://your-server:8000      # Custom hostname
+
+###############################################################################
+# CONFIGURATION GUIDE
+###############################################################################
+
+### HOSTNAME CONFIGURATION OPTIONS:
+
+# Option 1: Using 'vision' hostname (recommended for production)
+# - Requires hostname resolution setup
+# - Add to /etc/hosts: 127.0.0.1 vision
+# - Or configure DNS: vision -> server IP address
+# - Update camera_preview.html: API_BASE = 'http://vision:8000'
+# - Set @baseUrl = http://vision:8000
+
+# Option 2: Using localhost (development)
+# - Works immediately on local machine
+# - Set @baseUrl = http://localhost:8000
+# - Update camera_preview.html: API_BASE = 'http://localhost:8000'
+
+# Option 3: Using specific IP address
+# - Replace with actual server IP
+# - Set @baseUrl = http://192.168.1.100:8000
+# - Update camera_preview.html: API_BASE = 'http://192.168.1.100:8000'
+
+# Option 4: Custom hostname
+# - Configure DNS or /etc/hosts for custom name
+# - Set @baseUrl = http://your-custom-name:8000
+# - Update camera_preview.html: API_BASE = 'http://your-custom-name:8000'
+
+### NETWORK CONFIGURATION:
+# - Default port: 8000
+# - CORS enabled for all origins (configure for production)
+# - No authentication required (add if needed)
+
+### CLIENT CONFIGURATION FILES TO UPDATE:
+# 1. camera_preview.html - Update API_BASE constant
+# 2. React projects - Update apiConfig.baseUrl
+# 3. This file - Update @baseUrl variable
+# 4. Any custom scripts - Update base URL
+
+### TESTING CONNECTIVITY:
+# Test if the API is reachable:
+GET {{baseUrl}}/health
 
 ###############################################################################
 # SYSTEM ENDPOINTS
 ###############################################################################
 
 ### Root endpoint - API information
-GET http://localhost:8000/
+GET {{baseUrl}}/
 # Response: SuccessResponse
 # {
 #   "success": true,
@@ -427,3 +487,14 @@ Content-Type: application/json
 #    - fps omitted: Uses camera config default
 # 6. Filenames automatically get datetime prefix: YYYYMMDD_HHMMSS_filename.avi
 # 7. Recovery endpoints should be used in order: test-connection → reconnect → restart-grab → full-reset → reinitialize
+
+
+
+### Start streaming for camera1
+curl -X POST http://localhost:8000/cameras/camera1/start-stream
+
+# View live stream (open in browser)
+# http://localhost:8000/cameras/camera1/stream
+
+### Stop streaming
+curl -X POST http://localhost:8000/cameras/camera1/stop-stream

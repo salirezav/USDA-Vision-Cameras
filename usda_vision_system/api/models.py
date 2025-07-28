@@ -81,6 +81,74 @@ class StartRecordingRequest(BaseModel):
     fps: Optional[float] = Field(default=None, description="Target frames per second")
 
 
+class CameraConfigRequest(BaseModel):
+    """Camera configuration update request model"""
+
+    # Basic settings
+    exposure_ms: Optional[float] = Field(default=None, ge=0.1, le=1000.0, description="Exposure time in milliseconds")
+    gain: Optional[float] = Field(default=None, ge=0.0, le=20.0, description="Camera gain value")
+    target_fps: Optional[float] = Field(default=None, ge=0.0, le=120.0, description="Target frames per second")
+
+    # Image Quality Settings
+    sharpness: Optional[int] = Field(default=None, ge=0, le=200, description="Sharpness (0-200, default 100)")
+    contrast: Optional[int] = Field(default=None, ge=0, le=200, description="Contrast (0-200, default 100)")
+    saturation: Optional[int] = Field(default=None, ge=0, le=200, description="Saturation (0-200, default 100)")
+    gamma: Optional[int] = Field(default=None, ge=0, le=300, description="Gamma (0-300, default 100)")
+
+    # Noise Reduction
+    noise_filter_enabled: Optional[bool] = Field(default=None, description="Enable basic noise filtering")
+    denoise_3d_enabled: Optional[bool] = Field(default=None, description="Enable advanced 3D denoising")
+
+    # Color Settings (for color cameras)
+    auto_white_balance: Optional[bool] = Field(default=None, description="Enable automatic white balance")
+    color_temperature_preset: Optional[int] = Field(default=None, ge=0, le=10, description="Color temperature preset")
+
+    # Advanced Settings
+    anti_flicker_enabled: Optional[bool] = Field(default=None, description="Reduce artificial lighting flicker")
+    light_frequency: Optional[int] = Field(default=None, ge=0, le=1, description="Light frequency (0=50Hz, 1=60Hz)")
+
+    # HDR Settings
+    hdr_enabled: Optional[bool] = Field(default=None, description="Enable High Dynamic Range")
+    hdr_gain_mode: Optional[int] = Field(default=None, ge=0, le=3, description="HDR processing mode")
+
+
+class CameraConfigResponse(BaseModel):
+    """Camera configuration response model"""
+
+    name: str
+    machine_topic: str
+    storage_path: str
+    enabled: bool
+
+    # Basic settings
+    exposure_ms: float
+    gain: float
+    target_fps: float
+
+    # Image Quality Settings
+    sharpness: int
+    contrast: int
+    saturation: int
+    gamma: int
+
+    # Noise Reduction
+    noise_filter_enabled: bool
+    denoise_3d_enabled: bool
+
+    # Color Settings
+    auto_white_balance: bool
+    color_temperature_preset: int
+
+    # Advanced Settings
+    anti_flicker_enabled: bool
+    light_frequency: int
+    bit_depth: int
+
+    # HDR Settings
+    hdr_enabled: bool
+    hdr_gain_mode: int
+
+
 class StartRecordingResponse(BaseModel):
     """Start recording response model"""
 
