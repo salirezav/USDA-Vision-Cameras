@@ -2,6 +2,8 @@
 
 This guide explains how to configure camera settings via API endpoints, including all the advanced settings from your config.json.
 
+> **Note**: This document is part of the comprehensive [USDA Vision Camera System API Documentation](../API_DOCUMENTATION.md). For complete API reference, see the main documentation.
+
 ## 📋 Configuration Categories
 
 ### ✅ **Real-time Configurable (No Restart Required)**

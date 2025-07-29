@@ -4,6 +4,8 @@
 
 This document provides a comprehensive guide for updating the React application to support the new auto-recording feature that was added to the USDA Vision Camera System.
 
+> **📚 For complete API reference**: See the [USDA Vision Camera System API Documentation](../API_DOCUMENTATION.md) for detailed endpoint specifications and examples.
+
 ## 📋 What Changed in the Backend
 
 ### New API Endpoints Added

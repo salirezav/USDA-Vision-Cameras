@@ -4,6 +4,22 @@ This directory contains detailed documentation for the USDA Vision Camera System
 
 ## Documentation Files
 
+### 🚀 [API_DOCUMENTATION.md](API_DOCUMENTATION.md) **⭐ NEW**
+**Complete API reference documentation** covering all endpoints, features, and recent enhancements:
+- System status and health monitoring
+- Camera management and configuration
+- Recording control with dynamic settings
+- Auto-recording management
+- MQTT and machine status
+- Storage and file management
+- Camera recovery and diagnostics
+- Live streaming capabilities
+- WebSocket real-time updates
+- Quick start examples and migration notes
+
+### ⚡ [API_QUICK_REFERENCE.md](API_QUICK_REFERENCE.md) **⭐ NEW**
+**Quick reference card** for the most commonly used API endpoints with curl examples and response formats.
+
 ### 📋 [PROJECT_COMPLETE.md](PROJECT_COMPLETE.md)
 Complete project overview and final status documentation. Contains:
 - Project completion status

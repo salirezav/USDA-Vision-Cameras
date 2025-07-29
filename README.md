@@ -30,6 +30,7 @@ USDA-Vision-Cameras/
 ├── pyproject.toml              # UV package configuration
 ├── start_system.sh             # Startup script
 ├── setup_timezone.sh           # Time sync setup
+├── camera_preview.html         # Web camera preview interface
 ├── usda_vision_system/         # Main application
 │   ├── core/                   # Core functionality
 │   ├── mqtt/                   # MQTT integration
@@ -38,15 +39,26 @@ USDA-Vision-Cameras/
 │   ├── api/                    # REST API server
 │   └── main.py                 # Application coordinator
 ├── camera_sdk/                 # GigE camera SDK library
-├── demos/                      # Demo and example code
-│   ├── cv_grab*.py            # Camera SDK usage examples
-│   └── mqtt_*.py              # MQTT demo scripts
-├── tests/                      # Test files
-│   ├── test_*.py              # System tests
+├── tests/                      # Organized test files
+│   ├── api/                    # API-related tests
+│   ├── camera/                 # Camera functionality tests
+│   ├── core/                   # Core system tests
+│   ├── mqtt/                   # MQTT integration tests
+│   ├── recording/              # Recording feature tests
+│   ├── storage/                # Storage management tests
+│   ├── integration/            # System integration tests
 │   └── legacy_tests/          # Archived development files
-├── notebooks/                  # Jupyter notebooks
-├── docs/                       # Documentation files
-└── storage/                    # Recording storage
+├── docs/                       # Organized documentation
+│   ├── api/                    # API documentation
+│   ├── features/               # Feature-specific guides
+│   ├── guides/                 # User and setup guides
+│   └── legacy/                 # Legacy documentation
+├── ai_agent/                   # AI agent resources
+│   ├── guides/                 # AI-specific instructions
+│   ├── examples/               # Demo scripts and notebooks
+│   └── references/             # API references and types
+├── Camera/                     # Camera data directory
+└── storage/                    # Recording storage (created at runtime)
     ├── camera1/               # Camera 1 recordings
     └── camera2/               # Camera 2 recordings
 ```
@@ -255,12 +267,33 @@ python test_timezone.py
 
 The system provides a comprehensive REST API for monitoring and control.
 
+> **📚 Complete API Documentation**: See [docs/API_DOCUMENTATION.md](docs/API_DOCUMENTATION.md) for the full API reference including all endpoints, request/response models, examples, and recent enhancements.
+>
+> **⚡ Quick Reference**: See [docs/API_QUICK_REFERENCE.md](docs/API_QUICK_REFERENCE.md) for commonly used endpoints with curl examples.
+
 ### Starting the API Server
 The API server starts automatically with the main system on port 8000:
 ```bash
 python main.py
 # API available at: http://localhost:8000
 ```
+
+### 🚀 New API Features
+
+#### Enhanced Recording Control
+- **Dynamic camera settings**: Set exposure, gain, FPS per recording
+- **Automatic datetime prefixes**: All filenames get timestamp prefixes
+- **Auto-recording management**: Enable/disable per camera via API
+
+#### Advanced Camera Configuration
+- **Real-time settings**: Update image quality without restart
+- **Live streaming**: MJPEG streams for web integration
+- **Recovery operations**: Reconnect, reset, reinitialize cameras
+
+#### Comprehensive Monitoring
+- **MQTT event history**: Track machine state changes
+- **Storage statistics**: Monitor disk usage and file counts
+- **WebSocket updates**: Real-time system notifications
 
 ### Core Endpoints
 
