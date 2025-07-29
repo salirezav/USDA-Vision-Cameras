@@ -57,6 +57,13 @@ class CameraStatusResponse(BaseModel):
     current_recording_file: Optional[str] = None
     recording_start_time: Optional[str] = None
 
+    # Auto-recording status
+    auto_recording_enabled: bool = False
+    auto_recording_active: bool = False
+    auto_recording_failure_count: int = 0
+    auto_recording_last_attempt: Optional[str] = None
+    auto_recording_last_error: Optional[str] = None
+
 
 class RecordingInfoResponse(BaseModel):
     """Recording information response model"""
@@ -120,6 +127,11 @@ class CameraConfigResponse(BaseModel):
     storage_path: str
     enabled: bool
 
+    # Auto-recording settings
+    auto_start_recording_enabled: bool
+    auto_recording_max_retries: int
+    auto_recording_retry_delay_seconds: int
+
     # Basic settings
     exposure_ms: float
     gain: float
@@ -171,6 +183,30 @@ class StopRecordingResponse(BaseModel):
     success: bool
     message: str
     duration_seconds: Optional[float] = None
+
+
+class AutoRecordingConfigRequest(BaseModel):
+    """Auto-recording configuration request model"""
+
+    enabled: bool
+
+
+class AutoRecordingConfigResponse(BaseModel):
+    """Auto-recording configuration response model"""
+
+    success: bool
+    message: str
+    camera_name: str
+    enabled: bool
+
+
+class AutoRecordingStatusResponse(BaseModel):
+    """Auto-recording manager status response model"""
+
+    running: bool
+    auto_recording_enabled: bool
+    retry_queue: Dict[str, Any]
+    enabled_cameras: List[str]
 
 
 class StorageStatsResponse(BaseModel):

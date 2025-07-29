@@ -66,13 +66,14 @@ class WebSocketManager:
 class APIServer:
     """FastAPI server for the USDA Vision Camera System"""
 
-    def __init__(self, config: Config, state_manager: StateManager, event_system: EventSystem, camera_manager, mqtt_client, storage_manager: StorageManager):
+    def __init__(self, config: Config, state_manager: StateManager, event_system: EventSystem, camera_manager, mqtt_client, storage_manager: StorageManager, auto_recording_manager=None):
         self.config = config
         self.state_manager = state_manager
         self.event_system = event_system
         self.camera_manager = camera_manager
         self.mqtt_client = mqtt_client
         self.storage_manager = storage_manager
+        self.auto_recording_manager = auto_recording_manager
         self.logger = logging.getLogger(__name__)
 
         # FastAPI app
@@ -162,7 +163,21 @@ class APIServer:
             try:
                 cameras = self.state_manager.get_all_cameras()
                 return {
-                    name: CameraStatusResponse(name=camera.name, status=camera.status.value, is_recording=camera.is_recording, last_checked=camera.last_checked.isoformat(), last_error=camera.last_error, device_info=camera.device_info, current_recording_file=camera.current_recording_file, recording_start_time=camera.recording_start_time.isoformat() if camera.recording_start_time else None)
+                    name: CameraStatusResponse(
+                        name=camera.name,
+                        status=camera.status.value,
+                        is_recording=camera.is_recording,
+                        last_checked=camera.last_checked.isoformat(),
+                        last_error=camera.last_error,
+                        device_info=camera.device_info,
+                        current_recording_file=camera.current_recording_file,
+                        recording_start_time=camera.recording_start_time.isoformat() if camera.recording_start_time else None,
+                        auto_recording_enabled=camera.auto_recording_enabled,
+                        auto_recording_active=camera.auto_recording_active,
+                        auto_recording_failure_count=camera.auto_recording_failure_count,
+                        auto_recording_last_attempt=camera.auto_recording_last_attempt.isoformat() if camera.auto_recording_last_attempt else None,
+                        auto_recording_last_error=camera.auto_recording_last_error,
+                    )
                     for name, camera in cameras.items()
                 }
             except Exception as e:
@@ -469,6 +484,74 @@ class APIServer:
                     return CameraRecoveryResponse(success=False, message=f"Failed to reinitialize camera {camera_name}", camera_name=camera_name, operation="reinitialize")
             except Exception as e:
                 self.logger.error(f"Error reinitializing camera: {e}")
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @self.app.post("/cameras/{camera_name}/auto-recording/enable", response_model=AutoRecordingConfigResponse)
+        async def enable_auto_recording(camera_name: str):
+            """Enable auto-recording for a camera"""
+            try:
+                if not self.auto_recording_manager:
+                    raise HTTPException(status_code=503, detail="Auto-recording manager not available")
+
+                # Update camera configuration
+                camera_config = self.config.get_camera_by_name(camera_name)
+                if not camera_config:
+                    raise HTTPException(status_code=404, detail=f"Camera {camera_name} not found")
+
+                camera_config.auto_start_recording_enabled = True
+                self.config.save_config()
+
+                # Update camera status in state manager
+                camera_info = self.state_manager.get_camera_info(camera_name)
+                if camera_info:
+                    camera_info.auto_recording_enabled = True
+
+                return AutoRecordingConfigResponse(success=True, message=f"Auto-recording enabled for camera {camera_name}", camera_name=camera_name, enabled=True)
+            except HTTPException:
+                raise
+            except Exception as e:
+                self.logger.error(f"Error enabling auto-recording for camera {camera_name}: {e}")
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @self.app.post("/cameras/{camera_name}/auto-recording/disable", response_model=AutoRecordingConfigResponse)
+        async def disable_auto_recording(camera_name: str):
+            """Disable auto-recording for a camera"""
+            try:
+                if not self.auto_recording_manager:
+                    raise HTTPException(status_code=503, detail="Auto-recording manager not available")
+
+                # Update camera configuration
+                camera_config = self.config.get_camera_by_name(camera_name)
+                if not camera_config:
+                    raise HTTPException(status_code=404, detail=f"Camera {camera_name} not found")
+
+                camera_config.auto_start_recording_enabled = False
+                self.config.save_config()
+
+                # Update camera status in state manager
+                camera_info = self.state_manager.get_camera_info(camera_name)
+                if camera_info:
+                    camera_info.auto_recording_enabled = False
+                    camera_info.auto_recording_active = False
+
+                return AutoRecordingConfigResponse(success=True, message=f"Auto-recording disabled for camera {camera_name}", camera_name=camera_name, enabled=False)
+            except HTTPException:
+                raise
+            except Exception as e:
+                self.logger.error(f"Error disabling auto-recording for camera {camera_name}: {e}")
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @self.app.get("/auto-recording/status", response_model=AutoRecordingStatusResponse)
+        async def get_auto_recording_status():
+            """Get auto-recording manager status"""
+            try:
+                if not self.auto_recording_manager:
+                    raise HTTPException(status_code=503, detail="Auto-recording manager not available")
+
+                status = self.auto_recording_manager.get_status()
+                return AutoRecordingStatusResponse(**status)
+            except Exception as e:
+                self.logger.error(f"Error getting auto-recording status: {e}")
                 raise HTTPException(status_code=500, detail=str(e))
 
         @self.app.get("/recordings", response_model=Dict[str, RecordingInfoResponse])

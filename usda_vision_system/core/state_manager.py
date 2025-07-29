@@ -77,6 +77,13 @@ class CameraInfo:
     current_recording_file: Optional[str] = None
     recording_start_time: Optional[datetime] = None
 
+    # Auto-recording status
+    auto_recording_enabled: bool = False
+    auto_recording_active: bool = False  # Whether auto-recording is currently managing this camera
+    auto_recording_failure_count: int = 0
+    auto_recording_last_attempt: Optional[datetime] = None
+    auto_recording_last_error: Optional[str] = None
+
 
 @dataclass
 class RecordingInfo:

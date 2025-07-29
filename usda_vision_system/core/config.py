@@ -40,6 +40,11 @@ class CameraConfig:
     target_fps: float = 3.0
     enabled: bool = True
 
+    # Auto-recording settings
+    auto_start_recording_enabled: bool = False  # Enable automatic recording when machine turns on
+    auto_recording_max_retries: int = 3  # Maximum retry attempts for failed auto-recording starts
+    auto_recording_retry_delay_seconds: int = 5  # Delay between retry attempts
+
     # Image Quality Settings
     sharpness: int = 100  # 0-200, default 100 (no sharpening)
     contrast: int = 100  # 0-200, default 100 (normal contrast)
@@ -86,7 +91,10 @@ class SystemConfig:
     api_host: str = "0.0.0.0"
     api_port: int = 8000
     enable_api: bool = True
-    timezone: str = "America/New_York"  # Atlanta, Georgia timezone
+    timezone: str = "America/New_York"
+
+    # Auto-recording system settings
+    auto_recording_enabled: bool = True  # Global enable/disable for auto-recording feature  # Atlanta, Georgia timezone
 
 
 class Config:

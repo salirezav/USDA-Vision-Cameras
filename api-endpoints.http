@@ -292,6 +292,48 @@ POST http://localhost:8000/cameras/camera2/stop-recording
 # }
 
 ###############################################################################
+# AUTO-RECORDING CONTROL ENDPOINTS
+###############################################################################
+
+### Enable auto-recording for a camera
+POST http://localhost:8000/cameras/camera1/auto-recording/enable
+POST http://localhost:8000/cameras/camera2/auto-recording/enable
+# No request body required
+# Response: AutoRecordingConfigResponse
+# {
+#   "success": true,
+#   "message": "Auto-recording enabled for camera1",
+#   "camera_name": "camera1",
+#   "enabled": true
+# }
+
+###
+
+### Disable auto-recording for a camera
+POST http://localhost:8000/cameras/camera1/auto-recording/disable
+POST http://localhost:8000/cameras/camera2/auto-recording/disable
+# No request body required
+# Response: AutoRecordingConfigResponse
+# {
+#   "success": true,
+#   "message": "Auto-recording disabled for camera1",
+#   "camera_name": "camera1",
+#   "enabled": false
+# }
+
+###
+
+### Get auto-recording manager status
+GET http://localhost:8000/auto-recording/status
+# Response: AutoRecordingStatusResponse
+# {
+#   "running": true,
+#   "auto_recording_enabled": true,
+#   "retry_queue": {},
+#   "enabled_cameras": ["camera1", "camera2"]
+# }
+
+###############################################################################
 # CAMERA RECOVERY & DIAGNOSTICS ENDPOINTS
 ###############################################################################
 
