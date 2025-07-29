@@ -260,7 +260,13 @@ class CameraRecorder:
             if not self.camera_config.auto_white_balance:
                 mvsdk.CameraSetPresetClrTemp(self.hCamera, self.camera_config.color_temperature_preset)
 
-            self.logger.info(f"Color settings configured - Auto WB: {self.camera_config.auto_white_balance}, " f"Color Temp Preset: {self.camera_config.color_temperature_preset}")
+                # Set manual RGB gains for manual white balance
+                red_gain = int(self.camera_config.wb_red_gain * 100)  # Convert to camera units
+                green_gain = int(self.camera_config.wb_green_gain * 100)
+                blue_gain = int(self.camera_config.wb_blue_gain * 100)
+                mvsdk.CameraSetUserClrTempGain(self.hCamera, red_gain, green_gain, blue_gain)
+
+            self.logger.info(f"Color settings configured - Auto WB: {self.camera_config.auto_white_balance}, " f"Color Temp Preset: {self.camera_config.color_temperature_preset}, " f"RGB Gains: R={self.camera_config.wb_red_gain}, G={self.camera_config.wb_green_gain}, B={self.camera_config.wb_blue_gain}")
 
         except Exception as e:
             self.logger.warning(f"Error configuring color settings: {e}")
@@ -399,6 +405,30 @@ class CameraRecorder:
                         mvsdk.CameraSetPresetClrTemp(self.hCamera, kwargs["color_temperature_preset"])
                     self.camera_config.color_temperature_preset = kwargs["color_temperature_preset"]
                     settings_updated = True
+
+                # Update RGB gains for manual white balance
+                rgb_gains_updated = False
+                if "wb_red_gain" in kwargs and kwargs["wb_red_gain"] is not None:
+                    self.camera_config.wb_red_gain = kwargs["wb_red_gain"]
+                    rgb_gains_updated = True
+                    settings_updated = True
+
+                if "wb_green_gain" in kwargs and kwargs["wb_green_gain"] is not None:
+                    self.camera_config.wb_green_gain = kwargs["wb_green_gain"]
+                    rgb_gains_updated = True
+                    settings_updated = True
+
+                if "wb_blue_gain" in kwargs and kwargs["wb_blue_gain"] is not None:
+                    self.camera_config.wb_blue_gain = kwargs["wb_blue_gain"]
+                    rgb_gains_updated = True
+                    settings_updated = True
+
+                # Apply RGB gains if any were updated and we're in manual white balance mode
+                if rgb_gains_updated and not self.camera_config.auto_white_balance:
+                    red_gain = int(self.camera_config.wb_red_gain * 100)
+                    green_gain = int(self.camera_config.wb_green_gain * 100)
+                    blue_gain = int(self.camera_config.wb_blue_gain * 100)
+                    mvsdk.CameraSetUserClrTempGain(self.hCamera, red_gain, green_gain, blue_gain)
 
             # Update advanced settings
             if "anti_flicker_enabled" in kwargs and kwargs["anti_flicker_enabled"] is not None:

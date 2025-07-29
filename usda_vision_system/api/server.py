@@ -354,6 +354,10 @@ class APIServer:
                     # Color Settings
                     auto_white_balance=config.auto_white_balance,
                     color_temperature_preset=config.color_temperature_preset,
+                    # Manual White Balance RGB Gains
+                    wb_red_gain=config.wb_red_gain,
+                    wb_green_gain=config.wb_green_gain,
+                    wb_blue_gain=config.wb_blue_gain,
                     # Advanced Settings
                     anti_flicker_enabled=config.anti_flicker_enabled,
                     light_frequency=config.light_frequency,
@@ -512,7 +516,7 @@ class APIServer:
                 self.config.save_config()
 
                 # Update camera status in state manager
-                camera_info = self.state_manager.get_camera_info(camera_name)
+                camera_info = self.state_manager.get_camera_status(camera_name)
                 if camera_info:
                     camera_info.auto_recording_enabled = True
 
@@ -539,7 +543,7 @@ class APIServer:
                 self.config.save_config()
 
                 # Update camera status in state manager
-                camera_info = self.state_manager.get_camera_info(camera_name)
+                camera_info = self.state_manager.get_camera_status(camera_name)
                 if camera_info:
                     camera_info.auto_recording_enabled = False
                     camera_info.auto_recording_active = False

@@ -110,6 +110,11 @@ class CameraConfigRequest(BaseModel):
     auto_white_balance: Optional[bool] = Field(default=None, description="Enable automatic white balance")
     color_temperature_preset: Optional[int] = Field(default=None, ge=0, le=10, description="Color temperature preset")
 
+    # Manual White Balance RGB Gains
+    wb_red_gain: Optional[float] = Field(default=None, ge=0.0, le=3.99, description="Red channel gain for manual white balance")
+    wb_green_gain: Optional[float] = Field(default=None, ge=0.0, le=3.99, description="Green channel gain for manual white balance")
+    wb_blue_gain: Optional[float] = Field(default=None, ge=0.0, le=3.99, description="Blue channel gain for manual white balance")
+
     # Advanced Settings
     anti_flicker_enabled: Optional[bool] = Field(default=None, description="Reduce artificial lighting flicker")
     light_frequency: Optional[int] = Field(default=None, ge=0, le=1, description="Light frequency (0=50Hz, 1=60Hz)")
@@ -150,6 +155,11 @@ class CameraConfigResponse(BaseModel):
     # Color Settings
     auto_white_balance: bool
     color_temperature_preset: int
+
+    # Manual White Balance RGB Gains
+    wb_red_gain: float
+    wb_green_gain: float
+    wb_blue_gain: float
 
     # Advanced Settings
     anti_flicker_enabled: bool

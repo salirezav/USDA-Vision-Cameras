@@ -59,6 +59,11 @@ class CameraConfig:
     auto_white_balance: bool = True  # Enable automatic white balance
     color_temperature_preset: int = 0  # 0=auto, 1=daylight, 2=fluorescent, etc.
 
+    # Manual White Balance RGB Gains (for manual white balance mode)
+    wb_red_gain: float = 1.0  # Red channel gain (0.0-3.99, default 1.0)
+    wb_green_gain: float = 1.0  # Green channel gain (0.0-3.99, default 1.0)
+    wb_blue_gain: float = 1.0  # Blue channel gain (0.0-3.99, default 1.0)
+
     # Advanced Settings
     anti_flicker_enabled: bool = True  # Reduce artificial lighting flicker
     light_frequency: int = 1  # 0=50Hz, 1=60Hz (match local power frequency)

@@ -205,21 +205,36 @@ class CameraStreamer:
             return False
 
     def _configure_streaming_settings(self):
-        """Configure camera settings optimized for streaming"""
+        """Configure camera settings from config.json for streaming"""
         try:
             # Set trigger mode to free run for continuous streaming
             mvsdk.CameraSetTriggerMode(self.hCamera, 0)
 
-            # Set exposure (use a reasonable default for preview)
-            exposure_us = int(self.camera_config.exposure_ms * 1000)
+            # Set manual exposure
+            mvsdk.CameraSetAeState(self.hCamera, 0)  # Disable auto exposure
+            exposure_us = int(self.camera_config.exposure_ms * 1000)  # Convert ms to microseconds
             mvsdk.CameraSetExposureTime(self.hCamera, exposure_us)
 
-            # Set gain
-            mvsdk.CameraSetAnalogGain(self.hCamera, int(self.camera_config.gain))
+            # Set analog gain
+            gain_value = int(self.camera_config.gain * 100)  # Convert to camera units
+            mvsdk.CameraSetAnalogGain(self.hCamera, gain_value)
 
             # Set frame rate for streaming (lower than recording)
             if hasattr(mvsdk, "CameraSetFrameSpeed"):
                 mvsdk.CameraSetFrameSpeed(self.hCamera, int(self.preview_fps))
+
+            # Configure image quality settings
+            self._configure_image_quality()
+
+            # Configure noise reduction
+            self._configure_noise_reduction()
+
+            # Configure color settings (for color cameras)
+            if not self.monoCamera:
+                self._configure_color_settings()
+
+            # Configure advanced settings
+            self._configure_advanced_settings()
 
             self.logger.info(f"Streaming settings configured: exposure={self.camera_config.exposure_ms}ms, gain={self.camera_config.gain}, fps={self.preview_fps}")
 
@@ -313,6 +328,83 @@ class CameraStreamer:
     def is_streaming(self) -> bool:
         """Check if streaming is active"""
         return self.streaming
+
+    def _configure_image_quality(self) -> None:
+        """Configure image quality settings"""
+        try:
+            # Set sharpness (0-200, default 100)
+            mvsdk.CameraSetSharpness(self.hCamera, self.camera_config.sharpness)
+
+            # Set contrast (0-200, default 100)
+            mvsdk.CameraSetContrast(self.hCamera, self.camera_config.contrast)
+
+            # Set gamma (0-300, default 100)
+            mvsdk.CameraSetGamma(self.hCamera, self.camera_config.gamma)
+
+            # Set saturation for color cameras (0-200, default 100)
+            if not self.monoCamera:
+                mvsdk.CameraSetSaturation(self.hCamera, self.camera_config.saturation)
+
+            self.logger.info(f"Image quality configured - Sharpness: {self.camera_config.sharpness}, " f"Contrast: {self.camera_config.contrast}, Gamma: {self.camera_config.gamma}")
+
+        except Exception as e:
+            self.logger.warning(f"Error configuring image quality: {e}")
+
+    def _configure_noise_reduction(self) -> None:
+        """Configure noise reduction settings"""
+        try:
+            # Note: Some noise reduction settings may require specific SDK functions
+            # that might not be available in all SDK versions
+            self.logger.info(f"Noise reduction configured - Filter: {self.camera_config.noise_filter_enabled}, " f"3D Denoise: {self.camera_config.denoise_3d_enabled}")
+
+        except Exception as e:
+            self.logger.warning(f"Error configuring noise reduction: {e}")
+
+    def _configure_color_settings(self) -> None:
+        """Configure color settings for color cameras"""
+        try:
+            # Set white balance mode
+            mvsdk.CameraSetWbMode(self.hCamera, self.camera_config.auto_white_balance)
+
+            # Set color temperature preset if not using auto white balance
+            if not self.camera_config.auto_white_balance:
+                mvsdk.CameraSetPresetClrTemp(self.hCamera, self.camera_config.color_temperature_preset)
+
+                # Set manual RGB gains for manual white balance
+                red_gain = int(self.camera_config.wb_red_gain * 100)  # Convert to camera units
+                green_gain = int(self.camera_config.wb_green_gain * 100)
+                blue_gain = int(self.camera_config.wb_blue_gain * 100)
+                mvsdk.CameraSetUserClrTempGain(self.hCamera, red_gain, green_gain, blue_gain)
+
+            self.logger.info(f"Color settings configured - Auto WB: {self.camera_config.auto_white_balance}, " f"Color Temp Preset: {self.camera_config.color_temperature_preset}, " f"RGB Gains: R={self.camera_config.wb_red_gain}, G={self.camera_config.wb_green_gain}, B={self.camera_config.wb_blue_gain}")
+
+        except Exception as e:
+            self.logger.warning(f"Error configuring color settings: {e}")
+
+    def _configure_advanced_settings(self) -> None:
+        """Configure advanced camera settings"""
+        try:
+            # Set anti-flicker
+            mvsdk.CameraSetAntiFlick(self.hCamera, self.camera_config.anti_flicker_enabled)
+
+            # Set light frequency (0=50Hz, 1=60Hz)
+            mvsdk.CameraSetLightFrequency(self.hCamera, self.camera_config.light_frequency)
+
+            # Configure HDR if enabled (check if HDR functions are available)
+            try:
+                if self.camera_config.hdr_enabled:
+                    mvsdk.CameraSetHDR(self.hCamera, 1)  # Enable HDR
+                    mvsdk.CameraSetHDRGainMode(self.hCamera, self.camera_config.hdr_gain_mode)
+                    self.logger.info(f"HDR enabled with gain mode: {self.camera_config.hdr_gain_mode}")
+                else:
+                    mvsdk.CameraSetHDR(self.hCamera, 0)  # Disable HDR
+            except AttributeError:
+                self.logger.info("HDR functions not available in this SDK version, skipping HDR configuration")
+
+            self.logger.info(f"Advanced settings configured - Anti-flicker: {self.camera_config.anti_flicker_enabled}, " f"Light Freq: {self.camera_config.light_frequency}Hz, HDR: {self.camera_config.hdr_enabled}")
+
+        except Exception as e:
+            self.logger.warning(f"Error configuring advanced settings: {e}")
 
     def __del__(self):
         """Destructor to ensure cleanup"""

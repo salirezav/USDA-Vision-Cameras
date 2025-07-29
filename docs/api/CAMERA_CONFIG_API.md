@@ -12,6 +12,7 @@ These settings can be changed while the camera is active:
 - **Basic**: `exposure_ms`, `gain`, `target_fps`
 - **Image Quality**: `sharpness`, `contrast`, `saturation`, `gamma`
 - **Color**: `auto_white_balance`, `color_temperature_preset`
+- **White Balance**: `wb_red_gain`, `wb_green_gain`, `wb_blue_gain`
 - **Advanced**: `anti_flicker_enabled`, `light_frequency`
 - **HDR**: `hdr_enabled`, `hdr_gain_mode`
 
@@ -20,6 +21,12 @@ These settings require camera restart to take effect:
 
 - **Noise Reduction**: `noise_filter_enabled`, `denoise_3d_enabled`
 - **System**: `machine_topic`, `storage_path`, `enabled`, `bit_depth`
+
+### 🔒 **Read-Only Fields**
+These fields are returned in the response but cannot be modified via the API:
+
+- **System Info**: `name`, `machine_topic`, `storage_path`, `enabled`
+- **Auto-Recording**: `auto_start_recording_enabled`, `auto_recording_max_retries`, `auto_recording_retry_delay_seconds`
 
 ## 🔌 API Endpoints
 
@@ -35,6 +42,9 @@ GET /cameras/{camera_name}/config
   "machine_topic": "vibratory_conveyor",
   "storage_path": "/storage/camera1",
   "enabled": true,
+  "auto_start_recording_enabled": true,
+  "auto_recording_max_retries": 3,
+  "auto_recording_retry_delay_seconds": 2,
   "exposure_ms": 1.0,
   "gain": 3.5,
   "target_fps": 0,
@@ -46,6 +56,9 @@ GET /cameras/{camera_name}/config
   "denoise_3d_enabled": false,
   "auto_white_balance": true,
   "color_temperature_preset": 0,
+  "wb_red_gain": 1.0,
+  "wb_green_gain": 1.0,
+  "wb_blue_gain": 1.0,
   "anti_flicker_enabled": true,
   "light_frequency": 1,
   "bit_depth": 8,
@@ -74,6 +87,9 @@ Content-Type: application/json
   "denoise_3d_enabled": false,
   "auto_white_balance": false,
   "color_temperature_preset": 1,
+  "wb_red_gain": 1.2,
+  "wb_green_gain": 1.0,
+  "wb_blue_gain": 0.8,
   "anti_flicker_enabled": true,
   "light_frequency": 1,
   "hdr_enabled": false,
@@ -86,7 +102,7 @@ Content-Type: application/json
 {
   "success": true,
   "message": "Camera camera1 configuration updated",
-  "updated_settings": ["exposure_ms", "gain", "sharpness"]
+  "updated_settings": ["exposure_ms", "gain", "sharpness", "wb_red_gain"]
 }
 ```
 
@@ -104,6 +120,21 @@ POST /cameras/{camera_name}/apply-config
 ```
 
 ## 📊 Setting Ranges and Descriptions
+
+### System Settings
+| Setting | Values | Default | Description |
+|---------|--------|---------|-------------|
+| `name` | string | - | Camera identifier (read-only) |
+| `machine_topic` | string | - | MQTT topic for machine state (read-only) |
+| `storage_path` | string | - | Video storage directory (read-only) |
+| `enabled` | true/false | true | Camera enabled status (read-only) |
+
+### Auto-Recording Settings
+| Setting | Range | Default | Description |
+|---------|-------|---------|-------------|
+| `auto_start_recording_enabled` | true/false | true | Enable automatic recording on machine state changes (read-only) |
+| `auto_recording_max_retries` | 1-10 | 3 | Maximum retry attempts for failed recordings (read-only) |
+| `auto_recording_retry_delay_seconds` | 1-30 | 2 | Delay between retry attempts in seconds (read-only) |
 
 ### Basic Settings
 | Setting | Range | Default | Description |
@@ -125,6 +156,13 @@ POST /cameras/{camera_name}/apply-config
 |---------|--------|---------|-------------|
 | `auto_white_balance` | true/false | true | Automatic white balance |
 | `color_temperature_preset` | 0-10 | 0 | Color temperature preset (0=auto) |
+
+### Manual White Balance RGB Gains
+| Setting | Range | Default | Description |
+|---------|-------|---------|-------------|
+| `wb_red_gain` | 0.0 - 3.99 | 1.0 | Red channel gain for manual white balance |
+| `wb_green_gain` | 0.0 - 3.99 | 1.0 | Green channel gain for manual white balance |
+| `wb_blue_gain` | 0.0 - 3.99 | 1.0 | Blue channel gain for manual white balance |
 
 ### Advanced Settings
 | Setting | Values | Default | Description |
@@ -248,7 +286,21 @@ const CameraConfig = ({ cameraName, apiBaseUrl = 'http://localhost:8000' }) => {
   return (
     <div className="camera-config">
       <h3>Camera Configuration: {cameraName}</h3>
-      
+
+      {/* System Information (Read-Only) */}
+      <div className="config-section">
+        <h4>System Information</h4>
+        <div className="info-grid">
+          <div><strong>Name:</strong> {config.name}</div>
+          <div><strong>Machine Topic:</strong> {config.machine_topic}</div>
+          <div><strong>Storage Path:</strong> {config.storage_path}</div>
+          <div><strong>Enabled:</strong> {config.enabled ? 'Yes' : 'No'}</div>
+          <div><strong>Auto Recording:</strong> {config.auto_start_recording_enabled ? 'Enabled' : 'Disabled'}</div>
+          <div><strong>Max Retries:</strong> {config.auto_recording_max_retries}</div>
+          <div><strong>Retry Delay:</strong> {config.auto_recording_retry_delay_seconds}s</div>
+        </div>
+      </div>
+
       {/* Basic Settings */}
       <div className="config-section">
         <h4>Basic Settings</h4>
@@ -324,6 +376,47 @@ const CameraConfig = ({ cameraName, apiBaseUrl = 'http://localhost:8000' }) => {
             max="300"
             value={config.gamma}
             onChange={(e) => handleSliderChange('gamma', parseInt(e.target.value))}
+          />
+        </div>
+      </div>
+
+      {/* White Balance RGB Gains */}
+      <div className="config-section">
+        <h4>White Balance RGB Gains</h4>
+
+        <div className="setting">
+          <label>Red Gain: {config.wb_red_gain}</label>
+          <input
+            type="range"
+            min="0"
+            max="3.99"
+            step="0.01"
+            value={config.wb_red_gain}
+            onChange={(e) => handleSliderChange('wb_red_gain', parseFloat(e.target.value))}
+          />
+        </div>
+
+        <div className="setting">
+          <label>Green Gain: {config.wb_green_gain}</label>
+          <input
+            type="range"
+            min="0"
+            max="3.99"
+            step="0.01"
+            value={config.wb_green_gain}
+            onChange={(e) => handleSliderChange('wb_green_gain', parseFloat(e.target.value))}
+          />
+        </div>
+
+        <div className="setting">
+          <label>Blue Gain: {config.wb_blue_gain}</label>
+          <input
+            type="range"
+            min="0"
+            max="3.99"
+            step="0.01"
+            value={config.wb_blue_gain}
+            onChange={(e) => handleSliderChange('wb_blue_gain', parseFloat(e.target.value))}
           />
         </div>
       </div>

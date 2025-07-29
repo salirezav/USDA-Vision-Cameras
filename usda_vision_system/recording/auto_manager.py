@@ -84,10 +84,17 @@ class AutoRecordingManager:
         for camera_config in self.config.cameras:
             if camera_config.enabled and camera_config.auto_start_recording_enabled:
                 # Update camera status in state manager
-                camera_info = self.state_manager.get_camera_info(camera_config.name)
+                camera_info = self.state_manager.get_camera_status(camera_config.name)
                 if camera_info:
                     camera_info.auto_recording_enabled = True
                     self.logger.info(f"Auto-recording enabled for camera {camera_config.name}")
+                else:
+                    # Create camera info if it doesn't exist
+                    self.state_manager.update_camera_status(camera_config.name, "unknown")
+                    camera_info = self.state_manager.get_camera_status(camera_config.name)
+                    if camera_info:
+                        camera_info.auto_recording_enabled = True
+                        self.logger.info(f"Auto-recording enabled for camera {camera_config.name}")
 
     def _on_machine_state_changed(self, event: Event) -> None:
         """Handle machine state change events"""
@@ -96,15 +103,17 @@ class AutoRecordingManager:
             new_state = event.data.get("state")
 
             if not machine_name or not new_state:
+                self.logger.warning(f"Invalid event data - machine_name: {machine_name}, state: {new_state}")
                 return
 
             self.logger.info(f"Machine state changed: {machine_name} -> {new_state}")
 
             # Find cameras associated with this machine
             associated_cameras = self._get_cameras_for_machine(machine_name)
-            
+
             for camera_config in associated_cameras:
                 if not camera_config.enabled or not camera_config.auto_start_recording_enabled:
+                    self.logger.debug(f"Skipping camera {camera_config.name} - not enabled or auto recording disabled")
                     continue
 
                 if new_state.lower() == "on":
@@ -118,13 +127,10 @@ class AutoRecordingManager:
     def _get_cameras_for_machine(self, machine_name: str) -> list[CameraConfig]:
         """Get all cameras associated with a machine topic"""
         associated_cameras = []
-        
+
         # Map machine names to topics
-        machine_topic_map = {
-            "vibratory_conveyor": "vibratory_conveyor",
-            "blower_separator": "blower_separator"
-        }
-        
+        machine_topic_map = {"vibratory_conveyor": "vibratory_conveyor", "blower_separator": "blower_separator"}
+
         machine_topic = machine_topic_map.get(machine_name)
         if not machine_topic:
             return associated_cameras
@@ -138,23 +144,30 @@ class AutoRecordingManager:
     def _handle_machine_on(self, camera_config: CameraConfig) -> None:
         """Handle machine turning on - start recording"""
         camera_name = camera_config.name
-        
+
         # Check if camera is already recording
-        camera_info = self.state_manager.get_camera_info(camera_name)
+        camera_info = self.state_manager.get_camera_status(camera_name)
         if camera_info and camera_info.is_recording:
             self.logger.info(f"Camera {camera_name} is already recording, skipping auto-start")
             return
 
         self.logger.info(f"Machine turned ON - attempting to start recording for camera {camera_name}")
-        
+
         # Update auto-recording status
         if camera_info:
             camera_info.auto_recording_active = True
             camera_info.auto_recording_last_attempt = datetime.now()
+        else:
+            # Create camera info if it doesn't exist
+            self.state_manager.update_camera_status(camera_name, "unknown")
+            camera_info = self.state_manager.get_camera_status(camera_name)
+            if camera_info:
+                camera_info.auto_recording_active = True
+                camera_info.auto_recording_last_attempt = datetime.now()
 
         # Attempt to start recording
         success = self._start_recording_for_camera(camera_config)
-        
+
         if not success:
             # Add to retry queue
             self._add_to_retry_queue(camera_config, "start")
@@ -162,11 +175,11 @@ class AutoRecordingManager:
     def _handle_machine_off(self, camera_config: CameraConfig) -> None:
         """Handle machine turning off - stop recording"""
         camera_name = camera_config.name
-        
+
         self.logger.info(f"Machine turned OFF - attempting to stop recording for camera {camera_name}")
-        
+
         # Update auto-recording status
-        camera_info = self.state_manager.get_camera_info(camera_name)
+        camera_info = self.state_manager.get_camera_status(camera_name)
         if camera_info:
             camera_info.auto_recording_active = False
 
@@ -179,57 +192,59 @@ class AutoRecordingManager:
         self._stop_recording_for_camera(camera_config)
 
     def _start_recording_for_camera(self, camera_config: CameraConfig) -> bool:
-        """Start recording for a specific camera"""
+        """Start recording for a specific camera using its default configuration"""
         try:
             camera_name = camera_config.name
-            
+
             # Generate filename with timestamp and machine info
             timestamp = format_filename_timestamp()
             machine_name = camera_config.machine_topic.replace("_", "-")
             filename = f"{camera_name}_auto_{machine_name}_{timestamp}.avi"
-            
-            # Use camera manager to start recording
-            success = self.camera_manager.manual_start_recording(camera_name, filename)
-            
+
+            # Use camera manager to start recording with the camera's default configuration
+            # Pass the camera's configured settings from config.json
+            success = self.camera_manager.manual_start_recording(camera_name=camera_name, filename=filename, exposure_ms=camera_config.exposure_ms, gain=camera_config.gain, fps=camera_config.target_fps)
+
             if success:
                 self.logger.info(f"Successfully started auto-recording for camera {camera_name}: {filename}")
-                
+                self.logger.info(f"Using camera settings - Exposure: {camera_config.exposure_ms}ms, Gain: {camera_config.gain}, FPS: {camera_config.target_fps}")
+
                 # Update status
-                camera_info = self.state_manager.get_camera_info(camera_name)
+                camera_info = self.state_manager.get_camera_status(camera_name)
                 if camera_info:
                     camera_info.auto_recording_failure_count = 0
                     camera_info.auto_recording_last_error = None
-                
+
                 return True
             else:
                 self.logger.error(f"Failed to start auto-recording for camera {camera_name}")
                 return False
-                
+
         except Exception as e:
             self.logger.error(f"Error starting auto-recording for camera {camera_config.name}: {e}")
-            
+
             # Update error status
-            camera_info = self.state_manager.get_camera_info(camera_config.name)
+            camera_info = self.state_manager.get_camera_status(camera_config.name)
             if camera_info:
                 camera_info.auto_recording_last_error = str(e)
-            
+
             return False
 
     def _stop_recording_for_camera(self, camera_config: CameraConfig) -> bool:
         """Stop recording for a specific camera"""
         try:
             camera_name = camera_config.name
-            
+
             # Use camera manager to stop recording
             success = self.camera_manager.manual_stop_recording(camera_name)
-            
+
             if success:
                 self.logger.info(f"Successfully stopped auto-recording for camera {camera_name}")
                 return True
             else:
                 self.logger.warning(f"Failed to stop auto-recording for camera {camera_name} (may not have been recording)")
                 return False
-                
+
         except Exception as e:
             self.logger.error(f"Error stopping auto-recording for camera {camera_config.name}: {e}")
             return False
@@ -238,15 +253,9 @@ class AutoRecordingManager:
         """Add a camera to the retry queue"""
         with self._retry_lock:
             camera_name = camera_config.name
-            
-            retry_info = {
-                "camera_config": camera_config,
-                "action": action,
-                "attempt_count": 0,
-                "next_retry_time": datetime.now() + timedelta(seconds=camera_config.auto_recording_retry_delay_seconds),
-                "max_retries": camera_config.auto_recording_max_retries
-            }
-            
+
+            retry_info = {"camera_config": camera_config, "action": action, "attempt_count": 0, "next_retry_time": datetime.now() + timedelta(seconds=camera_config.auto_recording_retry_delay_seconds), "max_retries": camera_config.auto_recording_max_retries}
+
             self._retry_queue[camera_name] = retry_info
             self.logger.info(f"Added camera {camera_name} to retry queue for {action} (max retries: {retry_info['max_retries']})")
 
@@ -256,20 +265,20 @@ class AutoRecordingManager:
             try:
                 current_time = datetime.now()
                 cameras_to_retry = []
-                
+
                 # Find cameras ready for retry
                 with self._retry_lock:
                     for camera_name, retry_info in list(self._retry_queue.items()):
                         if current_time >= retry_info["next_retry_time"]:
                             cameras_to_retry.append((camera_name, retry_info))
-                
+
                 # Process retries
                 for camera_name, retry_info in cameras_to_retry:
                     self._process_retry(camera_name, retry_info)
-                
+
                 # Sleep for a short interval
                 self._stop_event.wait(1)
-                
+
             except Exception as e:
                 self.logger.error(f"Error in retry loop: {e}")
                 self._stop_event.wait(5)
@@ -280,20 +289,20 @@ class AutoRecordingManager:
             retry_info["attempt_count"] += 1
             camera_config = retry_info["camera_config"]
             action = retry_info["action"]
-            
+
             self.logger.info(f"Retry attempt {retry_info['attempt_count']}/{retry_info['max_retries']} for camera {camera_name} ({action})")
-            
+
             # Update camera status
-            camera_info = self.state_manager.get_camera_info(camera_name)
+            camera_info = self.state_manager.get_camera_status(camera_name)
             if camera_info:
                 camera_info.auto_recording_last_attempt = datetime.now()
                 camera_info.auto_recording_failure_count = retry_info["attempt_count"]
-            
+
             # Attempt the action
             success = False
             if action == "start":
                 success = self._start_recording_for_camera(camera_config)
-            
+
             if success:
                 # Success - remove from retry queue
                 with self._retry_lock:
@@ -307,10 +316,10 @@ class AutoRecordingManager:
                     with self._retry_lock:
                         if camera_name in self._retry_queue:
                             del self._retry_queue[camera_name]
-                    
+
                     error_msg = f"Max retry attempts ({retry_info['max_retries']}) reached for camera {camera_name}"
                     self.logger.error(error_msg)
-                    
+
                     # Update camera status
                     if camera_info:
                         camera_info.auto_recording_last_error = error_msg
@@ -319,10 +328,10 @@ class AutoRecordingManager:
                     # Schedule next retry
                     retry_info["next_retry_time"] = datetime.now() + timedelta(seconds=camera_config.auto_recording_retry_delay_seconds)
                     self.logger.info(f"Scheduling next retry for camera {camera_name} in {camera_config.auto_recording_retry_delay_seconds} seconds")
-                    
+
         except Exception as e:
             self.logger.error(f"Error processing retry for camera {camera_name}: {e}")
-            
+
             # Remove from retry queue on error
             with self._retry_lock:
                 if camera_name in self._retry_queue:
@@ -331,22 +340,6 @@ class AutoRecordingManager:
     def get_status(self) -> Dict[str, Any]:
         """Get auto-recording manager status"""
         with self._retry_lock:
-            retry_queue_status = {
-                camera_name: {
-                    "action": info["action"],
-                    "attempt_count": info["attempt_count"],
-                    "max_retries": info["max_retries"],
-                    "next_retry_time": info["next_retry_time"].isoformat()
-                }
-                for camera_name, info in self._retry_queue.items()
-            }
-        
-        return {
-            "running": self.running,
-            "auto_recording_enabled": self.config.system.auto_recording_enabled,
-            "retry_queue": retry_queue_status,
-            "enabled_cameras": [
-                camera.name for camera in self.config.cameras 
-                if camera.enabled and camera.auto_start_recording_enabled
-            ]
-        }
+            retry_queue_status = {camera_name: {"action": info["action"], "attempt_count": info["attempt_count"], "max_retries": info["max_retries"], "next_retry_time": info["next_retry_time"].isoformat()} for camera_name, info in self._retry_queue.items()}
+
+        return {"running": self.running, "auto_recording_enabled": self.config.system.auto_recording_enabled, "retry_queue": retry_queue_status, "enabled_cameras": [camera.name for camera in self.config.cameras if camera.enabled and camera.auto_start_recording_enabled]}
