@@ -335,20 +335,30 @@ class APIServer:
                     machine_topic=config.machine_topic,
                     storage_path=config.storage_path,
                     enabled=config.enabled,
+                    # Auto-recording settings
+                    auto_start_recording_enabled=config.auto_start_recording_enabled,
+                    auto_recording_max_retries=config.auto_recording_max_retries,
+                    auto_recording_retry_delay_seconds=config.auto_recording_retry_delay_seconds,
+                    # Basic settings
                     exposure_ms=config.exposure_ms,
                     gain=config.gain,
                     target_fps=config.target_fps,
+                    # Image Quality Settings
                     sharpness=config.sharpness,
                     contrast=config.contrast,
                     saturation=config.saturation,
                     gamma=config.gamma,
+                    # Noise Reduction
                     noise_filter_enabled=config.noise_filter_enabled,
                     denoise_3d_enabled=config.denoise_3d_enabled,
+                    # Color Settings
                     auto_white_balance=config.auto_white_balance,
                     color_temperature_preset=config.color_temperature_preset,
+                    # Advanced Settings
                     anti_flicker_enabled=config.anti_flicker_enabled,
                     light_frequency=config.light_frequency,
                     bit_depth=config.bit_depth,
+                    # HDR Settings
                     hdr_enabled=config.hdr_enabled,
                     hdr_gain_mode=config.hdr_gain_mode,
                 )

@@ -1,5 +1,6 @@
 # Python
 __pycache__/
+**/__pycache__/
 *.py[cod]
 *$py.class
 *.so
@@ -59,8 +60,8 @@ config_production.json
 .DS_Store
 Thumbs.db
 
-# Camera SDK cache
-camera_sdk/__pycache__/
+# Camera SDK cache (covered by **/__pycache__/ above)
+# camera_sdk/__pycache__/
 
 # Test outputs
 test_output/
@@ -83,7 +84,7 @@ Thumbs.db
 # old tests/
 Camera/log/*
 
-# Python cache
-*/__pycache__/*
+# Python cache (covered by **/__pycache__/ above)
+# */__pycache__/*
 old tests/Camera/log/*
 old tests/Camera/Data/*
