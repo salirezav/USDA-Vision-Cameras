@@ -199,7 +199,7 @@ class AutoRecordingManager:
             # Generate filename with timestamp and machine info
             timestamp = format_filename_timestamp()
             machine_name = camera_config.machine_topic.replace("_", "-")
-            filename = f"{camera_name}_auto_{machine_name}_{timestamp}.avi"
+            filename = f"{camera_name}_auto_{machine_name}_{timestamp}.{camera_config.video_format}"
 
             # Use camera manager to start recording with the camera's default configuration
             # Pass the camera's configured settings from config.json

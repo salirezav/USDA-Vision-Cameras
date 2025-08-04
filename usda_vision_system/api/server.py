@@ -20,6 +20,7 @@ from ..core.config import Config
 from ..core.state_manager import StateManager
 from ..core.events import EventSystem, EventType, Event
 from ..storage.manager import StorageManager
+from ..video.integration import create_video_module, VideoModule
 from .models import *
 
 
@@ -76,6 +77,10 @@ class APIServer:
         self.auto_recording_manager = auto_recording_manager
         self.logger = logging.getLogger(__name__)
 
+        # Initialize video module
+        self.video_module: Optional[VideoModule] = None
+        self._initialize_video_module()
+
         # FastAPI app
         self.app = FastAPI(title="USDA Vision Camera System API", description="API for monitoring and controlling the USDA vision camera system", version="1.0.0")
 
@@ -96,6 +101,15 @@ class APIServer:
 
         # Subscribe to events for WebSocket broadcasting
         self._setup_event_subscriptions()
+
+    def _initialize_video_module(self):
+        """Initialize the modular video streaming system"""
+        try:
+            self.video_module = create_video_module(config=self.config, storage_manager=self.storage_manager, enable_caching=True, enable_conversion=True)
+            self.logger.info("Video module initialized successfully")
+        except Exception as e:
+            self.logger.error(f"Failed to initialize video module: {e}")
+            self.video_module = None
 
     def _setup_routes(self):
         """Setup API routes"""
@@ -118,6 +132,20 @@ class APIServer:
                 return SystemStatusResponse(system_started=summary["system_started"], mqtt_connected=summary["mqtt_connected"], last_mqtt_message=summary["last_mqtt_message"], machines=summary["machines"], cameras=summary["cameras"], active_recordings=summary["active_recordings"], total_recordings=summary["total_recordings"], uptime_seconds=uptime)
             except Exception as e:
                 self.logger.error(f"Error getting system status: {e}")
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @self.app.get("/system/video-module")
+        async def get_video_module_status():
+            """Get video module status and configuration"""
+            try:
+                if self.video_module:
+                    status = self.video_module.get_module_status()
+                    status["enabled"] = True
+                    return status
+                else:
+                    return {"enabled": False, "error": "Video module not initialized"}
+            except Exception as e:
+                self.logger.error(f"Error getting video module status: {e}")
                 raise HTTPException(status_code=500, detail=str(e))
 
         @self.app.get("/machines", response_model=Dict[str, MachineStatusResponse])
@@ -343,6 +371,10 @@ class APIServer:
                     exposure_ms=config.exposure_ms,
                     gain=config.gain,
                     target_fps=config.target_fps,
+                    # Video recording settings
+                    video_format=config.video_format,
+                    video_codec=config.video_codec,
+                    video_quality=config.video_quality,
                     # Image Quality Settings
                     sharpness=config.sharpness,
                     contrast=config.contrast,
@@ -643,6 +675,19 @@ class APIServer:
             except WebSocketDisconnect:
                 self.websocket_manager.disconnect(websocket)
 
+        # Include video module routes if available
+        if self.video_module:
+            try:
+                video_routes = self.video_module.get_api_routes()
+                admin_video_routes = self.video_module.get_admin_routes()
+
+                self.app.include_router(video_routes)
+                self.app.include_router(admin_video_routes)
+
+                self.logger.info("Video streaming routes added successfully")
+            except Exception as e:
+                self.logger.error(f"Failed to add video routes: {e}")
+
     def _setup_event_subscriptions(self):
         """Setup event subscriptions for WebSocket broadcasting"""
 
@@ -696,6 +741,15 @@ class APIServer:
 
         self.logger.info("Stopping API server...")
         self.running = False
+
+        # Clean up video module
+        if self.video_module:
+            try:
+                # Note: This is synchronous cleanup - in a real async context you'd await this
+                asyncio.run(self.video_module.cleanup())
+                self.logger.info("Video module cleanup completed")
+            except Exception as e:
+                self.logger.error(f"Error during video module cleanup: {e}")
 
         # Note: uvicorn doesn't have a clean way to stop from another thread
         # In production, you might want to use a process manager like gunicorn

@@ -223,7 +223,9 @@ class CameraManager:
 
             # Generate filename with Atlanta timezone timestamp
             timestamp = format_filename_timestamp()
-            filename = f"{camera_name}_recording_{timestamp}.avi"
+            camera_config = self.config.get_camera_by_name(camera_name)
+            video_format = camera_config.video_format if camera_config else "mp4"
+            filename = f"{camera_name}_recording_{timestamp}.{video_format}"
 
             # Start recording
             success = recorder.start_recording(filename)
@@ -283,11 +285,14 @@ class CameraManager:
 
         # Generate filename with datetime prefix
         timestamp = format_filename_timestamp()
+        camera_config = self.config.get_camera_by_name(camera_name)
+        video_format = camera_config.video_format if camera_config else "mp4"
+
         if filename:
             # Always prepend datetime to the provided filename
             filename = f"{timestamp}_{filename}"
         else:
-            filename = f"{camera_name}_manual_{timestamp}.avi"
+            filename = f"{camera_name}_manual_{timestamp}.{video_format}"
 
         return recorder.start_recording(filename)
 

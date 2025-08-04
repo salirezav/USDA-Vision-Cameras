@@ -142,6 +142,11 @@ class CameraConfigResponse(BaseModel):
     gain: float
     target_fps: float
 
+    # Video recording settings
+    video_format: str
+    video_codec: str
+    video_quality: int
+
     # Image Quality Settings
     sharpness: int
     contrast: int

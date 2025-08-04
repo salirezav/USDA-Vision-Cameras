@@ -19,7 +19,7 @@ from .core.timezone_utils import log_time_info, check_time_sync
 from .mqtt.client import MQTTClient
 from .camera.manager import CameraManager
 from .storage.manager import StorageManager
-from .recording.auto_manager import AutoRecordingManager
+from .recording.standalone_auto_recorder import StandaloneAutoRecorder
 from .api.server import APIServer
 
 
@@ -46,7 +46,7 @@ class USDAVisionSystem:
         self.storage_manager = StorageManager(self.config, self.state_manager, self.event_system)
         self.mqtt_client = MQTTClient(self.config, self.state_manager, self.event_system)
         self.camera_manager = CameraManager(self.config, self.state_manager, self.event_system)
-        self.auto_recording_manager = AutoRecordingManager(self.config, self.state_manager, self.event_system, self.camera_manager)
+        self.auto_recording_manager = StandaloneAutoRecorder(config=self.config)
         self.api_server = APIServer(self.config, self.state_manager, self.event_system, self.camera_manager, self.mqtt_client, self.storage_manager, self.auto_recording_manager)
 
         # System state

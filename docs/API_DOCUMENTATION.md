@@ -194,31 +194,33 @@ GET /cameras/{camera_name}/config
 ```json
 {
   "name": "camera1",
-  "machine_topic": "vibratory_conveyor",
+  "machine_topic": "blower_separator",
   "storage_path": "/storage/camera1",
+  "exposure_ms": 0.3,
+  "gain": 4.0,
+  "target_fps": 0,
   "enabled": true,
+  "video_format": "mp4",
+  "video_codec": "mp4v",
+  "video_quality": 95,
   "auto_start_recording_enabled": true,
   "auto_recording_max_retries": 3,
   "auto_recording_retry_delay_seconds": 2,
-  "exposure_ms": 1.0,
-  "gain": 3.5,
-  "target_fps": 3.0,
-  "sharpness": 120,
-  "contrast": 110,
+  "contrast": 100,
   "saturation": 100,
   "gamma": 100,
-  "noise_filter_enabled": true,
+  "noise_filter_enabled": false,
   "denoise_3d_enabled": false,
-  "auto_white_balance": true,
+  "auto_white_balance": false,
   "color_temperature_preset": 0,
-  "wb_red_gain": 1.0,
+  "wb_red_gain": 0.94,
   "wb_green_gain": 1.0,
-  "wb_blue_gain": 1.0,
-  "anti_flicker_enabled": true,
-  "light_frequency": 1,
+  "wb_blue_gain": 0.87,
+  "anti_flicker_enabled": false,
+  "light_frequency": 0,
   "bit_depth": 8,
   "hdr_enabled": false,
-  "hdr_gain_mode": 0
+  "hdr_gain_mode": 2
 }
 ```
 
@@ -242,7 +244,7 @@ POST /cameras/{camera_name}/apply-config
 
 **Configuration Categories**:
 - ✅ **Real-time**: `exposure_ms`, `gain`, `target_fps`, `sharpness`, `contrast`, etc.
-- ⚠️ **Restart required**: `noise_filter_enabled`, `denoise_3d_enabled`, `bit_depth`
+- ⚠️ **Restart required**: `noise_filter_enabled`, `denoise_3d_enabled`, `bit_depth`, `video_format`, `video_codec`, `video_quality`
 
 For detailed configuration options, see [Camera Configuration API Guide](api/CAMERA_CONFIG_API.md).
 

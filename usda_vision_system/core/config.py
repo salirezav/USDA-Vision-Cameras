@@ -40,6 +40,11 @@ class CameraConfig:
     target_fps: float = 3.0
     enabled: bool = True
 
+    # Video recording settings
+    video_format: str = "mp4"  # Video file format (mp4, avi)
+    video_codec: str = "mp4v"  # Video codec (mp4v for MP4, XVID for AVI)
+    video_quality: int = 95  # Video quality (0-100, higher is better)
+
     # Auto-recording settings
     auto_start_recording_enabled: bool = False  # Enable automatic recording when machine turns on
     auto_recording_max_retries: int = 3  # Maximum retry attempts for failed auto-recording starts
@@ -149,7 +154,13 @@ class Config:
 
                 # Load camera configs
                 if "cameras" in config_data:
-                    self.cameras = [CameraConfig(**cam_data) for cam_data in config_data["cameras"]]
+                    self.cameras = []
+                    for cam_data in config_data["cameras"]:
+                        # Set defaults for new video format fields if not present
+                        cam_data.setdefault("video_format", "mp4")
+                        cam_data.setdefault("video_codec", "mp4v")
+                        cam_data.setdefault("video_quality", 95)
+                        self.cameras.append(CameraConfig(**cam_data))
                 else:
                     self._create_default_camera_configs()
 

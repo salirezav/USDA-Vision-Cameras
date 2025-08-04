@@ -634,14 +634,22 @@ class CameraRecorder:
             mvsdk.CameraImageProcess(self.hCamera, pRawData, self.frame_buffer, FrameHead)
             mvsdk.CameraReleaseImageBuffer(self.hCamera, pRawData)
 
-            # Set up video writer
-            fourcc = cv2.VideoWriter_fourcc(*"XVID")
+            # Set up video writer with configured codec
+            fourcc = cv2.VideoWriter_fourcc(*self.camera_config.video_codec)
             frame_size = (FrameHead.iWidth, FrameHead.iHeight)
 
             # Use 30 FPS for video writer if target_fps is 0 (unlimited)
             video_fps = self.camera_config.target_fps if self.camera_config.target_fps > 0 else 30.0
 
+            # Create video writer with quality settings
             self.video_writer = cv2.VideoWriter(self.output_filename, fourcc, video_fps, frame_size)
+
+            # Set quality if supported (for some codecs)
+            if hasattr(self.video_writer, "set") and self.camera_config.video_quality:
+                try:
+                    self.video_writer.set(cv2.VIDEOWRITER_PROP_QUALITY, self.camera_config.video_quality)
+                except:
+                    pass  # Quality setting not supported for this codec
 
             if not self.video_writer.isOpened():
                 self.logger.error(f"Failed to open video writer for {self.output_filename}")

@@ -27,6 +27,27 @@ Complete project overview and final status documentation. Contains:
 - Deployment instructions
 - Production readiness checklist
 
+### 🎥 [MP4_FORMAT_UPDATE.md](MP4_FORMAT_UPDATE.md) **⭐ NEW**
+**Frontend integration guide** for the MP4 video format update:
+- Video format changes from AVI to MP4
+- Frontend implementation checklist
+- API response updates
+- Performance benefits and browser compatibility
+
+### 🚀 [REACT_INTEGRATION_GUIDE.md](REACT_INTEGRATION_GUIDE.md) **⭐ NEW**
+**Quick reference for React developers** implementing the MP4 format changes:
+- Code examples and components
+- File handling updates
+- Configuration interface
+- Testing checklist
+
+### 📋 [CURRENT_CONFIGURATION.md](CURRENT_CONFIGURATION.md) **⭐ NEW**
+**Complete current system configuration reference**:
+- Exact config.json structure with all current values
+- Field-by-field documentation
+- Camera-specific settings comparison
+- MQTT topics and machine mappings
+
 ### 🔧 [API_CHANGES_SUMMARY.md](API_CHANGES_SUMMARY.md)
 Summary of API changes and enhancements made to the system.
 
