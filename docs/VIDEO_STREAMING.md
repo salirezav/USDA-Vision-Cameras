@@ -4,9 +4,12 @@ The USDA Vision Camera System now includes a modular video streaming system that
 
 ## 🌟 Features
 
-- **HTTP Range Request Support** - Enables seeking and progressive download
-- **Native MP4 Support** - Direct streaming of MP4 files with automatic AVI conversion
-- **Intelligent Caching** - Optimized streaming performance
+- **Progressive Streaming** - True chunked streaming for web browsers (no download required)
+- **HTTP Range Request Support** - Enables seeking and progressive download with 206 Partial Content
+- **Native MP4 Support** - Direct streaming of MP4 files optimized for web playback
+- **Memory Efficient** - 8KB chunked delivery, no large file loading into memory
+- **Browser Compatible** - Works with HTML5 `<video>` tag in all modern browsers
+- **Intelligent Caching** - Optimized streaming performance with byte-range caching
 - **Thumbnail Generation** - Extract preview images from videos
 - **Modular Architecture** - Clean separation of concerns
 - **No Authentication Required** - Open access for internal network use
@@ -84,12 +87,12 @@ GET /videos/{file_id}/stream
 
 **Example Requests:**
 ```bash
-# Stream entire video
-curl http://localhost:8000/videos/camera1_recording_20250804_143022.avi/stream
+# Stream entire video (progressive streaming)
+curl http://localhost:8000/videos/camera1_auto_blower_separator_20250805_123329.mp4/stream
 
 # Stream specific byte range (for seeking)
 curl -H "Range: bytes=0-1023" \
-  http://localhost:8000/videos/camera1_recording_20250804_143022.avi/stream
+  http://localhost:8000/videos/camera1_auto_blower_separator_20250805_123329.mp4/stream
 ```
 
 **Response Headers:**
@@ -97,14 +100,21 @@ curl -H "Range: bytes=0-1023" \
 - `Content-Length: {size}`
 - `Content-Range: bytes {start}-{end}/{total}` (for range requests)
 - `Cache-Control: public, max-age=3600`
-- `Content-Type: video/mp4` or `video/x-msvideo`
+- `Content-Type: video/mp4`
 
-**Features:**
-- ✅ **HTTP Range Requests**: Enables video seeking and progressive download
-- ✅ **Partial Content**: Returns 206 status for range requests
-- ✅ **Format Conversion**: Automatic AVI to MP4 conversion for web compatibility
-- ✅ **Intelligent Caching**: Byte-range caching for optimal performance
+**Streaming Implementation:**
+- ✅ **Progressive Streaming**: Uses FastAPI `StreamingResponse` with 8KB chunks
+- ✅ **HTTP Range Requests**: Returns 206 Partial Content for seeking
+- ✅ **Memory Efficient**: No large file loading, streams directly from disk
+- ✅ **Browser Compatible**: Works with HTML5 `<video>` tag playback
+- ✅ **Chunked Delivery**: Optimal 8KB chunk size for smooth playback
 - ✅ **CORS Enabled**: Ready for web browser integration
+
+**Response Status Codes:**
+- `200 OK`: Full video streaming (progressive chunks)
+- `206 Partial Content`: Range request successful
+- `404 Not Found`: Video not found or not streamable
+- `416 Range Not Satisfiable`: Invalid range request
 
 ### Get Video Info
 ```http
@@ -239,10 +249,15 @@ curl -X POST "http://localhost:8000/admin/videos/cache/cleanup?max_size_mb=100"
 ```jsx
 function VideoPlayer({ fileId }) {
   return (
-    <video controls width="100%">
-      <source 
-        src={`${API_BASE_URL}/videos/${fileId}/stream`} 
-        type="video/mp4" 
+    <video
+      controls
+      width="100%"
+      preload="metadata"
+      style={{ maxWidth: '800px' }}
+    >
+      <source
+        src={`${API_BASE_URL}/videos/${fileId}/stream`}
+        type="video/mp4"
       />
       Your browser does not support video playback.
     </video>
