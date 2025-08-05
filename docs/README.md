@@ -48,6 +48,20 @@ Complete project overview and final status documentation. Contains:
 - Camera-specific settings comparison
 - MQTT topics and machine mappings
 
+### 🎬 [VIDEO_STREAMING.md](VIDEO_STREAMING.md) **⭐ UPDATED**
+**Complete video streaming module documentation**:
+- Comprehensive API endpoint documentation
+- Authentication and security information
+- Error handling and troubleshooting
+- Performance optimization guidelines
+
+### 🤖 [AI_AGENT_VIDEO_INTEGRATION_GUIDE.md](AI_AGENT_VIDEO_INTEGRATION_GUIDE.md) **⭐ NEW**
+**Complete integration guide for AI agents and external systems**:
+- Step-by-step integration workflow
+- Programming language examples (Python, JavaScript)
+- Error handling and debugging strategies
+- Performance optimization recommendations
+
 ### 🔧 [API_CHANGES_SUMMARY.md](API_CHANGES_SUMMARY.md)
 Summary of API changes and enhancements made to the system.
 

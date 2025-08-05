@@ -13,6 +13,7 @@ This document provides comprehensive documentation for all API endpoints in the 
 - [💾 Storage & File Management](#-storage--file-management)
 - [🔄 Camera Recovery & Diagnostics](#-camera-recovery--diagnostics)
 - [📺 Live Streaming](#-live-streaming)
+- [🎬 Video Streaming & Playback](#-video-streaming--playback)
 - [🌐 WebSocket Real-time Updates](#-websocket-real-time-updates)
 
 ## 🔧 System Status & Health
@@ -447,6 +448,149 @@ POST /cameras/{camera_name}/stop-stream
 
 For detailed streaming integration, see [Streaming Guide](guides/STREAMING_GUIDE.md).
 
+## 🎬 Video Streaming & Playback
+
+The system includes a comprehensive video streaming module that provides YouTube-like video playback capabilities with HTTP range request support, thumbnail generation, and intelligent caching.
+
+### List Videos
+```http
+GET /videos/
+```
+**Query Parameters:**
+- `camera_name` (optional): Filter by camera name
+- `start_date` (optional): Filter videos created after this date (ISO format)
+- `end_date` (optional): Filter videos created before this date (ISO format)
+- `limit` (optional): Maximum number of results (default: 50, max: 1000)
+- `include_metadata` (optional): Include video metadata (default: false)
+
+**Response**: `VideoListResponse`
+```json
+{
+  "videos": [
+    {
+      "file_id": "camera1_auto_blower_separator_20250804_143022.mp4",
+      "camera_name": "camera1",
+      "filename": "camera1_auto_blower_separator_20250804_143022.mp4",
+      "file_size_bytes": 31457280,
+      "format": "mp4",
+      "status": "completed",
+      "created_at": "2025-08-04T14:30:22",
+      "start_time": "2025-08-04T14:30:22",
+      "end_time": "2025-08-04T14:32:22",
+      "machine_trigger": "blower_separator",
+      "is_streamable": true,
+      "needs_conversion": false,
+      "metadata": {
+        "duration_seconds": 120.5,
+        "width": 1920,
+        "height": 1080,
+        "fps": 30.0,
+        "codec": "mp4v",
+        "bitrate": 5000000,
+        "aspect_ratio": 1.777
+      }
+    }
+  ],
+  "total_count": 1
+}
+```
+
+### Get Video Information
+```http
+GET /videos/{file_id}
+```
+**Response**: `VideoInfoResponse` with detailed video information including metadata.
+
+### Stream Video
+```http
+GET /videos/{file_id}/stream
+```
+**Headers:**
+- `Range: bytes=0-1023` (optional): Request specific byte range for seeking
+
+**Features:**
+- ✅ **HTTP Range Requests**: Enables video seeking and progressive download
+- ✅ **Partial Content**: Returns 206 status for range requests
+- ✅ **Format Conversion**: Automatic AVI to MP4 conversion for web compatibility
+- ✅ **Intelligent Caching**: Optimized performance with byte-range caching
+- ✅ **CORS Enabled**: Ready for web browser integration
+
+**Response Headers:**
+- `Accept-Ranges: bytes`
+- `Content-Length: {size}`
+- `Content-Range: bytes {start}-{end}/{total}` (for range requests)
+- `Cache-Control: public, max-age=3600`
+
+### Get Video Thumbnail
+```http
+GET /videos/{file_id}/thumbnail?timestamp=5.0&width=320&height=240
+```
+**Query Parameters:**
+- `timestamp` (optional): Time position in seconds (default: 1.0)
+- `width` (optional): Thumbnail width in pixels (default: 320)
+- `height` (optional): Thumbnail height in pixels (default: 240)
+
+**Response**: JPEG image data with caching headers
+
+### Get Streaming Information
+```http
+GET /videos/{file_id}/info
+```
+**Response**: `StreamingInfoResponse`
+```json
+{
+  "file_id": "camera1_recording_20250804_143022.avi",
+  "file_size_bytes": 52428800,
+  "content_type": "video/mp4",
+  "supports_range_requests": true,
+  "chunk_size_bytes": 262144
+}
+```
+
+### Video Validation
+```http
+POST /videos/{file_id}/validate
+```
+**Response**: Validation status and accessibility check
+```json
+{
+  "file_id": "camera1_recording_20250804_143022.avi",
+  "is_valid": true
+}
+```
+
+### Cache Management
+```http
+POST /videos/{file_id}/cache/invalidate
+```
+**Response**: Cache invalidation status
+```json
+{
+  "file_id": "camera1_recording_20250804_143022.avi",
+  "cache_invalidated": true
+}
+```
+
+### Admin: Cache Cleanup
+```http
+POST /admin/videos/cache/cleanup?max_size_mb=100
+```
+**Response**: Cache cleanup results
+```json
+{
+  "cache_cleaned": true,
+  "entries_removed": 15,
+  "max_size_mb": 100
+}
+```
+
+**Video Streaming Features**:
+- 🎥 **Multiple Formats**: Native MP4 support with AVI conversion
+- 📱 **Web Compatible**: Direct integration with HTML5 video elements
+- ⚡ **High Performance**: Intelligent caching and adaptive chunking
+- 🖼️ **Thumbnail Generation**: Extract preview images at any timestamp
+- 🔄 **Range Requests**: Efficient seeking and progressive download
+
 ## 🌐 WebSocket Real-time Updates
 
 ### Connect to WebSocket
@@ -527,6 +671,35 @@ curl http://localhost:8000/auto-recording/status
 curl -X POST http://localhost:8000/cameras/camera1/auto-recording/disable
 ```
 
+### Video Streaming Operations
+```bash
+# List all videos
+curl http://localhost:8000/videos/
+
+# List videos from specific camera with metadata
+curl "http://localhost:8000/videos/?camera_name=camera1&include_metadata=true"
+
+# Get video information
+curl http://localhost:8000/videos/camera1_recording_20250804_143022.avi
+
+# Get video thumbnail
+curl "http://localhost:8000/videos/camera1_recording_20250804_143022.avi/thumbnail?timestamp=5.0&width=320&height=240" \
+  --output thumbnail.jpg
+
+# Get streaming info
+curl http://localhost:8000/videos/camera1_recording_20250804_143022.avi/info
+
+# Stream video with range request
+curl -H "Range: bytes=0-1023" \
+  http://localhost:8000/videos/camera1_recording_20250804_143022.avi/stream
+
+# Validate video file
+curl -X POST http://localhost:8000/videos/camera1_recording_20250804_143022.avi/validate
+
+# Clean up video cache (admin)
+curl -X POST "http://localhost:8000/admin/videos/cache/cleanup?max_size_mb=100"
+```
+
 ### Camera Configuration
 ```bash
 # Get current camera configuration
@@ -574,6 +747,13 @@ curl -X PUT http://localhost:8000/cameras/camera1/config \
 - **Storage statistics**: Monitor disk usage and file counts
 - **WebSocket updates**: Real-time system status notifications
 
+#### 6. Video Streaming Module
+- **HTTP Range Requests**: Efficient video seeking and progressive download
+- **Thumbnail Generation**: Extract preview images from videos at any timestamp
+- **Format Conversion**: Automatic AVI to MP4 conversion for web compatibility
+- **Intelligent Caching**: Byte-range caching for optimal streaming performance
+- **Admin Tools**: Cache management and video validation endpoints
+
 ### 🔄 Migration Notes
 
 #### From Previous Versions
@@ -607,6 +787,8 @@ curl -X PUT http://localhost:8000/cameras/camera1/config \
 - [📷 Camera Configuration API Guide](api/CAMERA_CONFIG_API.md) - Detailed camera settings
 - [🤖 Auto-Recording Feature Guide](features/AUTO_RECORDING_FEATURE_GUIDE.md) - React integration
 - [📺 Streaming Guide](guides/STREAMING_GUIDE.md) - Live video streaming
+- [🎬 Video Streaming Guide](VIDEO_STREAMING.md) - Video playback and streaming
+- [🤖 AI Agent Video Integration Guide](AI_AGENT_VIDEO_INTEGRATION_GUIDE.md) - Complete integration guide for AI agents
 - [🔧 Camera Recovery Guide](guides/CAMERA_RECOVERY_GUIDE.md) - Troubleshooting
 - [📡 MQTT Logging Guide](guides/MQTT_LOGGING_GUIDE.md) - MQTT configuration
 
@@ -619,9 +801,17 @@ curl -X PUT http://localhost:8000/cameras/camera1/config \
 ### Error Handling
 All endpoints return standard HTTP status codes:
 - `200`: Success
-- `404`: Resource not found (camera, file, etc.)
+- `206`: Partial Content (for video range requests)
+- `400`: Bad Request (invalid parameters)
+- `404`: Resource not found (camera, file, video, etc.)
+- `416`: Range Not Satisfiable (invalid video range request)
 - `500`: Internal server error
 - `503`: Service unavailable (camera manager, MQTT, etc.)
+
+**Video Streaming Specific Errors:**
+- `404`: Video file not found or not streamable
+- `416`: Invalid range request (malformed Range header)
+- `500`: Failed to read video data or generate thumbnail
 
 ### Rate Limiting
 - No rate limiting currently implemented
