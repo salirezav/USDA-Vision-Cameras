@@ -97,7 +97,7 @@ while IFS= read -r -d '' avi_file; do
     if [ -z "$duration" ] || [ "$duration" -eq 0 ]; then
         print_warning "Could not determine video duration, converting without progress bar..."
         # Fallback to simple conversion without progress
-        if ffmpeg -i "$avi_file" -c:v libx264 -c:a aac -preset medium -crf 18 "$mp4_file" -y 2>/dev/null; then
+        if ffmpeg -i "$avi_file" -c:v libx264 -c:a aac -preset medium -crf 18 -nostdin "$mp4_file" -y 2>/dev/null; then
             echo
             print_success "Converted: $avi_file -> $mp4_file"
             converted_files=$((converted_files + 1))
@@ -117,7 +117,7 @@ while IFS= read -r -d '' avi_file; do
 
     # Start ffmpeg conversion in background with progress output
     ffmpeg -i "$avi_file" -c:v libx264 -c:a aac -preset medium -crf 18 \
-           -progress "$progress_file" -nostats -loglevel 0 "$mp4_file" -y &
+           -progress "$progress_file" -nostats -loglevel 0 -nostdin "$mp4_file" -y &
 
     ffmpeg_pid=$!
 

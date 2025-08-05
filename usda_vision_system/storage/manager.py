@@ -211,21 +211,24 @@ class StorageManager:
 
                 storage_path = Path(camera_config.storage_path)
                 if storage_path.exists():
-                    for video_file in storage_path.glob("*.avi"):
-                        if video_file.is_file() and str(video_file) not in indexed_files:
-                            # Get file stats
-                            stat = video_file.stat()
-                            file_mtime = datetime.fromtimestamp(stat.st_mtime)
+                    # Scan for all supported video formats
+                    video_extensions = ["*.avi", "*.mp4", "*.webm"]
+                    for pattern in video_extensions:
+                        for video_file in storage_path.glob(pattern):
+                            if video_file.is_file() and str(video_file) not in indexed_files:
+                                # Get file stats
+                                stat = video_file.stat()
+                                file_mtime = datetime.fromtimestamp(stat.st_mtime)
 
-                            # Apply date filters
-                            if start_date and file_mtime < start_date:
-                                continue
-                            if end_date and file_mtime > end_date:
-                                continue
+                                # Apply date filters
+                                if start_date and file_mtime < start_date:
+                                    continue
+                                if end_date and file_mtime > end_date:
+                                    continue
 
-                            # Create file info for unindexed file
-                            file_info = {"camera_name": camera_config.name, "filename": str(video_file), "file_id": video_file.name, "start_time": file_mtime.isoformat(), "end_time": None, "file_size_bytes": stat.st_size, "duration_seconds": None, "machine_trigger": None, "status": "unknown", "created_at": file_mtime.isoformat()}  # We don't know if it's completed or not
-                            files.append(file_info)
+                                # Create file info for unindexed file
+                                file_info = {"camera_name": camera_config.name, "filename": str(video_file), "file_id": video_file.name, "start_time": file_mtime.isoformat(), "end_time": None, "file_size_bytes": stat.st_size, "duration_seconds": None, "machine_trigger": None, "status": "unknown", "created_at": file_mtime.isoformat()}  # We don't know if it's completed or not
+                                files.append(file_info)
 
             # Sort by start time (newest first)
             files.sort(key=lambda x: x["start_time"], reverse=True)
@@ -261,18 +264,21 @@ class StorageManager:
 
                 # Scan for video files in camera directory
                 if storage_path.exists():
-                    for video_file in storage_path.glob("*.avi"):
-                        if video_file.is_file():
-                            stats["total_files"] += 1
-                            stats["cameras"][camera_name]["file_count"] += 1
+                    # Scan for all supported video formats
+                    video_extensions = ["*.avi", "*.mp4", "*.webm"]
+                    for pattern in video_extensions:
+                        for video_file in storage_path.glob(pattern):
+                            if video_file.is_file():
+                                stats["total_files"] += 1
+                                stats["cameras"][camera_name]["file_count"] += 1
 
-                            # Get file size
-                            try:
-                                file_size = video_file.stat().st_size
-                                stats["total_size_bytes"] += file_size
-                                stats["cameras"][camera_name]["total_size_bytes"] += file_size
-                            except Exception as e:
-                                self.logger.warning(f"Could not get size for {video_file}: {e}")
+                                # Get file size
+                                try:
+                                    file_size = video_file.stat().st_size
+                                    stats["total_size_bytes"] += file_size
+                                    stats["cameras"][camera_name]["total_size_bytes"] += file_size
+                                except Exception as e:
+                                    self.logger.warning(f"Could not get size for {video_file}: {e}")
 
             # Add duration information from index if available
             for file_info in self.file_index["files"].values():
@@ -389,10 +395,13 @@ class StorageManager:
             for camera_config in self.config.cameras:
                 storage_path = Path(camera_config.storage_path)
                 if storage_path.exists():
-                    for video_file in storage_path.glob("*.avi"):
-                        file_id = video_file.name
-                        if file_id not in self.file_index["files"]:
-                            integrity_report["orphaned_files"].append(str(video_file))
+                    # Check for all supported video formats
+                    video_extensions = ["*.avi", "*.mp4", "*.webm"]
+                    for pattern in video_extensions:
+                        for video_file in storage_path.glob(pattern):
+                            file_id = video_file.name
+                            if file_id not in self.file_index["files"]:
+                                integrity_report["orphaned_files"].append(str(video_file))
 
             # Save updated index if fixes were made
             if integrity_report["fixed_issues"] > 0:
