@@ -1,0 +1,543 @@
+### USDA Vision Camera Streaming API
+###
+### CONFIGURATION:
+### - Production: http://vision:8000 (requires hostname setup)
+### - Development: http://localhost:8000
+### - Custom: Update @baseUrl below to match your setup
+###
+### This file contains streaming-specific API endpoints for live camera preview
+### Use with VS Code REST Client extension or similar tools.
+
+# Base URL - Update to match your configuration
+@baseUrl = http://vision:8000
+# Alternative: @baseUrl = http://localhost:8000
+
+### =============================================================================
+### STREAMING ENDPOINTS (NEW FUNCTIONALITY)
+### =============================================================================
+
+### Start camera streaming for live preview
+### This creates a separate camera connection that doesn't interfere with recording
+POST {{baseUrl}}/cameras/camera1/start-stream
+Content-Type: application/json
+
+### Expected Response:
+# {
+#   "success": true,
+#   "message": "Started streaming for camera camera1"
+# }
+
+###
+
+### Stop camera streaming
+POST {{baseUrl}}/cameras/camera1/stop-stream
+Content-Type: application/json
+
+### Expected Response:
+# {
+#   "success": true,
+#   "message": "Stopped streaming for camera camera1"
+# }
+
+###
+
+### Get live MJPEG stream (open in browser or use as img src)
+### This endpoint returns a continuous MJPEG stream
+### Content-Type: multipart/x-mixed-replace; boundary=frame
+GET {{baseUrl}}/cameras/camera1/stream
+
+### Usage in HTML:
+# <img src="http://localhost:8000/cameras/camera1/stream" alt="Live Stream" />
+
+### Usage in React:
+# <img src={`${apiBaseUrl}/cameras/${cameraName}/stream?t=${Date.now()}`} />
+
+###
+
+### Start streaming for camera2
+POST {{baseUrl}}/cameras/camera2/start-stream
+Content-Type: application/json
+
+###
+
+### Get live stream for camera2
+GET {{baseUrl}}/cameras/camera2/stream
+
+###
+
+### Stop streaming for camera2
+POST {{baseUrl}}/cameras/camera2/stop-stream
+Content-Type: application/json
+
+### =============================================================================
+### CONCURRENT OPERATIONS TESTING
+### =============================================================================
+
+### Test Scenario: Streaming + Recording Simultaneously
+### This demonstrates that streaming doesn't block recording
+
+### Step 1: Start streaming first
+POST {{baseUrl}}/cameras/camera1/start-stream
+Content-Type: application/json
+
+###
+
+### Step 2: Start recording (while streaming continues)
+POST {{baseUrl}}/cameras/camera1/start-recording
+Content-Type: application/json
+
+{
+  "filename": "concurrent_test.avi"
+}
+
+###
+
+### Step 3: Check both are running
+GET {{baseUrl}}/cameras/camera1
+
+### Expected Response shows both recording and streaming active:
+# {
+#   "camera1": {
+#     "name": "camera1",
+#     "status": "connected",
+#     "is_recording": true,
+#     "current_recording_file": "concurrent_test.avi",
+#     "recording_start_time": "2025-01-28T10:30:00.000Z"
+#   }
+# }
+
+###
+
+### Step 4: Stop recording (streaming continues)
+POST {{baseUrl}}/cameras/camera1/stop-recording
+Content-Type: application/json
+
+###
+
+### Step 5: Verify streaming still works
+GET {{baseUrl}}/cameras/camera1/stream
+
+###
+
+### Step 6: Stop streaming
+POST {{baseUrl}}/cameras/camera1/stop-stream
+Content-Type: application/json
+
+### =============================================================================
+### MULTIPLE CAMERA STREAMING
+### =============================================================================
+
+### Start streaming on multiple cameras simultaneously
+POST {{baseUrl}}/cameras/camera1/start-stream
+Content-Type: application/json
+
+###
+
+POST {{baseUrl}}/cameras/camera2/start-stream
+Content-Type: application/json
+
+###
+
+### Check status of all cameras
+GET {{baseUrl}}/cameras
+
+###
+
+### Access multiple streams (open in separate browser tabs)
+GET {{baseUrl}}/cameras/camera1/stream
+
+###
+
+GET {{baseUrl}}/cameras/camera2/stream
+
+###
+
+### Stop all streaming
+POST {{baseUrl}}/cameras/camera1/stop-stream
+Content-Type: application/json
+
+###
+
+POST {{baseUrl}}/cameras/camera2/stop-stream
+Content-Type: application/json
+
+### =============================================================================
+### ERROR TESTING
+### =============================================================================
+
+### Test with invalid camera name
+POST {{baseUrl}}/cameras/invalid_camera/start-stream
+Content-Type: application/json
+
+### Expected Response:
+# {
+#   "detail": "Camera streamer not found: invalid_camera"
+# }
+
+###
+
+### Test stream endpoint without starting stream first
+GET {{baseUrl}}/cameras/camera1/stream
+
+### Expected: May return error or empty stream depending on camera state
+
+###
+
+### Test starting stream when camera is in error state
+POST {{baseUrl}}/cameras/camera1/start-stream
+Content-Type: application/json
+
+### If camera has issues, expected response:
+# {
+#   "success": false,
+#   "message": "Failed to start streaming for camera camera1"
+# }
+
+### =============================================================================
+### INTEGRATION EXAMPLES FOR AI ASSISTANTS
+### =============================================================================
+
+### React Component Integration:
+# const CameraStream = ({ cameraName }) => {
+#   const [isStreaming, setIsStreaming] = useState(false);
+#   
+#   const startStream = async () => {
+#     const response = await fetch(`${baseUrl}/cameras/${cameraName}/start-stream`, {
+#       method: 'POST'
+#     });
+#     if (response.ok) {
+#       setIsStreaming(true);
+#     }
+#   };
+#   
+#   return (
+#     <div>
+#       <button onClick={startStream}>Start Stream</button>
+#       {isStreaming && (
+#         <img src={`${baseUrl}/cameras/${cameraName}/stream?t=${Date.now()}`} />
+#       )}
+#     </div>
+#   );
+# };
+
+### JavaScript Fetch Example:
+# const streamAPI = {
+#   async startStream(cameraName) {
+#     const response = await fetch(`${baseUrl}/cameras/${cameraName}/start-stream`, {
+#       method: 'POST',
+#       headers: { 'Content-Type': 'application/json' }
+#     });
+#     return response.json();
+#   },
+#   
+#   async stopStream(cameraName) {
+#     const response = await fetch(`${baseUrl}/cameras/${cameraName}/stop-stream`, {
+#       method: 'POST',
+#       headers: { 'Content-Type': 'application/json' }
+#     });
+#     return response.json();
+#   },
+#   
+#   getStreamUrl(cameraName) {
+#     return `${baseUrl}/cameras/${cameraName}/stream?t=${Date.now()}`;
+#   }
+# };
+
+### Vue.js Integration:
+# <template>
+#   <div>
+#     <button @click="startStream">Start Stream</button>
+#     <img v-if="isStreaming" :src="streamUrl" />
+#   </div>
+# </template>
+# 
+# <script>
+# export default {
+#   data() {
+#     return {
+#       isStreaming: false,
+#       cameraName: 'camera1'
+#     };
+#   },
+#   computed: {
+#     streamUrl() {
+#       return `${this.baseUrl}/cameras/${this.cameraName}/stream?t=${Date.now()}`;
+#     }
+#   },
+#   methods: {
+#     async startStream() {
+#       const response = await fetch(`${this.baseUrl}/cameras/${this.cameraName}/start-stream`, {
+#         method: 'POST'
+#       });
+#       if (response.ok) {
+#         this.isStreaming = true;
+#       }
+#     }
+#   }
+# };
+# </script>
+
+### =============================================================================
+### TROUBLESHOOTING
+### =============================================================================
+
+### If streams don't start:
+# 1. Check camera status: GET /cameras
+# 2. Verify system health: GET /health  
+# 3. Test camera connection: POST /cameras/{name}/test-connection
+# 4. Check if camera is already recording (shouldn't matter, but good to know)
+
+### If stream image doesn't load:
+# 1. Verify stream was started: POST /cameras/{name}/start-stream
+# 2. Check browser console for CORS errors
+# 3. Try accessing stream URL directly in browser
+# 4. Add timestamp to prevent caching: ?t=${Date.now()}
+
+### If concurrent operations fail:
+# 1. This should work - streaming and recording use separate connections
+# 2. Check system logs for resource conflicts
+# 3. Verify sufficient system resources (CPU/Memory)
+# 4. Test with one camera first, then multiple
+
+### Performance Notes:
+# - Streaming uses ~10 FPS by default (configurable)
+# - JPEG quality set to 70% (configurable)
+# - Each stream uses additional CPU/memory
+# - Multiple concurrent streams may impact performance
+
+### =============================================================================
+### CAMERA CONFIGURATION ENDPOINTS (NEW)
+### =============================================================================
+
+### Get camera configuration
+GET {{baseUrl}}/cameras/camera1/config
+
+### Expected Response:
+# {
+#   "name": "camera1",
+#   "machine_topic": "vibratory_conveyor",
+#   "storage_path": "/storage/camera1",
+#   "enabled": true,
+#   "auto_start_recording_enabled": true,
+#   "auto_recording_max_retries": 3,
+#   "auto_recording_retry_delay_seconds": 2,
+#   "exposure_ms": 1.0,
+#   "gain": 3.5,
+#   "target_fps": 0,
+#   "sharpness": 120,
+#   "contrast": 110,
+#   "saturation": 100,
+#   "gamma": 100,
+#   "noise_filter_enabled": true,
+#   "denoise_3d_enabled": false,
+#   "auto_white_balance": true,
+#   "color_temperature_preset": 0,
+#   "wb_red_gain": 1.0,
+#   "wb_green_gain": 1.0,
+#   "wb_blue_gain": 1.0,
+#   "anti_flicker_enabled": true,
+#   "light_frequency": 1,
+#   "bit_depth": 8,
+#   "hdr_enabled": false,
+#   "hdr_gain_mode": 0
+# }
+
+###
+
+### Update basic camera settings (real-time, no restart required)
+PUT {{baseUrl}}/cameras/camera1/config
+Content-Type: application/json
+
+{
+  "exposure_ms": 2.0,
+  "gain": 4.0,
+  "target_fps": 10.0
+}
+
+###
+
+### Update image quality settings
+PUT {{baseUrl}}/cameras/camera1/config
+Content-Type: application/json
+
+{
+  "sharpness": 150,
+  "contrast": 120,
+  "saturation": 110,
+  "gamma": 90
+}
+
+###
+
+### Update advanced settings
+PUT {{baseUrl}}/cameras/camera1/config
+Content-Type: application/json
+
+{
+  "anti_flicker_enabled": true,
+  "light_frequency": 1,
+  "auto_white_balance": false,
+  "color_temperature_preset": 2
+}
+
+###
+
+### Update white balance RGB gains (manual white balance)
+PUT {{baseUrl}}/cameras/camera1/config
+Content-Type: application/json
+
+{
+  "auto_white_balance": false,
+  "wb_red_gain": 1.2,
+  "wb_green_gain": 1.0,
+  "wb_blue_gain": 0.8
+}
+
+###
+
+### Enable HDR mode
+PUT {{baseUrl}}/cameras/camera1/config
+Content-Type: application/json
+
+{
+  "hdr_enabled": true,
+  "hdr_gain_mode": 1
+}
+
+###
+
+### Update noise reduction settings (requires restart)
+PUT {{baseUrl}}/cameras/camera1/config
+Content-Type: application/json
+
+{
+  "noise_filter_enabled": false,
+  "denoise_3d_enabled": true
+}
+
+###
+
+### Apply configuration (restart camera with new settings)
+POST {{baseUrl}}/cameras/camera1/apply-config
+
+### Expected Response:
+# {
+#   "success": true,
+#   "message": "Configuration applied to camera camera1"
+# }
+
+###
+
+### Get camera2 configuration
+GET {{baseUrl}}/cameras/camera2/config
+
+###
+
+### Update camera2 for outdoor lighting
+PUT {{baseUrl}}/cameras/camera2/config
+Content-Type: application/json
+
+{
+  "exposure_ms": 0.5,
+  "gain": 2.0,
+  "sharpness": 130,
+  "contrast": 115,
+  "anti_flicker_enabled": true,
+  "light_frequency": 1
+}
+
+### =============================================================================
+### CONFIGURATION TESTING SCENARIOS
+### =============================================================================
+
+### Scenario 1: Low light optimization
+PUT {{baseUrl}}/cameras/camera1/config
+Content-Type: application/json
+
+{
+  "exposure_ms": 5.0,
+  "gain": 8.0,
+  "noise_filter_enabled": true,
+  "denoise_3d_enabled": true
+}
+
+###
+
+### Scenario 2: High speed capture
+PUT {{baseUrl}}/cameras/camera1/config
+Content-Type: application/json
+
+{
+  "exposure_ms": 0.2,
+  "gain": 1.0,
+  "target_fps": 30.0,
+  "sharpness": 180
+}
+
+###
+
+### Scenario 3: Color accuracy for food inspection
+PUT {{baseUrl}}/cameras/camera1/config
+Content-Type: application/json
+
+{
+  "auto_white_balance": false,
+  "color_temperature_preset": 1,
+  "saturation": 120,
+  "contrast": 105,
+  "gamma": 95
+}
+
+###
+
+### Scenario 4: HDR for high contrast scenes
+PUT {{baseUrl}}/cameras/camera1/config
+Content-Type: application/json
+
+{
+  "hdr_enabled": true,
+  "hdr_gain_mode": 2,
+  "exposure_ms": 1.0,
+  "gain": 3.0
+}
+
+### =============================================================================
+### ERROR TESTING FOR CONFIGURATION
+### =============================================================================
+
+### Test invalid camera name
+GET {{baseUrl}}/cameras/invalid_camera/config
+
+###
+
+### Test invalid exposure range
+PUT {{baseUrl}}/cameras/camera1/config
+Content-Type: application/json
+
+{
+  "exposure_ms": 2000.0
+}
+
+### Expected: HTTP 422 validation error
+
+###
+
+### Test invalid gain range
+PUT {{baseUrl}}/cameras/camera1/config
+Content-Type: application/json
+
+{
+  "gain": 50.0
+}
+
+### Expected: HTTP 422 validation error
+
+###
+
+### Test empty configuration update
+PUT {{baseUrl}}/cameras/camera1/config
+Content-Type: application/json
+
+{}
+
+### Expected: HTTP 400 "No configuration updates provided"

@@ -1,0 +1,542 @@
+###############################################################################
+# USDA Vision Camera System - Complete API Endpoints Documentation
+#
+# CONFIGURATION:
+# - Default Base URL: http://localhost:8000 (local development)
+# - Production Base URL: http://vision:8000 (when using hostname 'vision')
+# - Custom hostname: Update @baseUrl variable below
+#
+# HOSTNAME SETUP:
+# To use 'vision' hostname instead of 'localhost':
+# 1. Add to /etc/hosts: 127.0.0.1 vision
+# 2. Or configure DNS to point 'vision' to the server IP
+# 3. Update camera_preview.html: API_BASE = 'http://vision:8000'
+###############################################################################
+
+# Base URL Configuration - Change this to match your setup
+@baseUrl = http://vision:8000
+# Alternative configurations:
+# @baseUrl = http://localhost:8000        # Local development
+# @baseUrl = http://192.168.1.100:8000    # Specific IP address
+# @baseUrl = http://your-server:8000      # Custom hostname
+
+###############################################################################
+# CONFIGURATION GUIDE
+###############################################################################
+
+### HOSTNAME CONFIGURATION OPTIONS:
+
+# Option 1: Using 'vision' hostname (recommended for production)
+# - Requires hostname resolution setup
+# - Add to /etc/hosts: 127.0.0.1 vision
+# - Or configure DNS: vision -> server IP address
+# - Update camera_preview.html: API_BASE = 'http://vision:8000'
+# - Set @baseUrl = http://vision:8000
+
+# Option 2: Using localhost (development)
+# - Works immediately on local machine
+# - Set @baseUrl = http://localhost:8000
+# - Update camera_preview.html: API_BASE = 'http://localhost:8000'
+
+# Option 3: Using specific IP address
+# - Replace with actual server IP
+# - Set @baseUrl = http://192.168.1.100:8000
+# - Update camera_preview.html: API_BASE = 'http://192.168.1.100:8000'
+
+# Option 4: Custom hostname
+# - Configure DNS or /etc/hosts for custom name
+# - Set @baseUrl = http://your-custom-name:8000
+# - Update camera_preview.html: API_BASE = 'http://your-custom-name:8000'
+
+### NETWORK CONFIGURATION:
+# - Default port: 8000
+# - CORS enabled for all origins (configure for production)
+# - No authentication required (add if needed)
+
+### CLIENT CONFIGURATION FILES TO UPDATE:
+# 1. camera_preview.html - Update API_BASE constant
+# 2. React projects - Update apiConfig.baseUrl
+# 3. This file - Update @baseUrl variable
+# 4. Any custom scripts - Update base URL
+
+### TESTING CONNECTIVITY:
+# Test if the API is reachable:
+GET {{baseUrl}}/health
+
+###############################################################################
+# SYSTEM ENDPOINTS
+###############################################################################
+
+### Root endpoint - API information
+GET {{baseUrl}}/
+# Response: SuccessResponse
+# {
+#   "success": true,
+#   "message": "USDA Vision Camera System API",
+#   "data": null,
+#   "timestamp": "2025-07-28T12:00:00"
+# }
+
+###
+
+### Health check
+GET http://localhost:8000/health
+# Response: Simple health status
+# {
+#   "status": "healthy",
+#   "timestamp": "2025-07-28T12:00:00"
+# }
+
+###
+
+### Get system status
+GET http://localhost:8000/system/status
+# Response: SystemStatusResponse
+# {
+#   "system_started": true,
+#   "mqtt_connected": true,
+#   "last_mqtt_message": "2025-07-28T12:00:00",
+#   "machines": {
+#     "vibratory_conveyor": {
+#       "name": "vibratory_conveyor",
+#       "state": "off",
+#       "last_updated": "2025-07-28T12:00:00"
+#     }
+#   },
+#   "cameras": {
+#     "camera1": {
+#       "name": "camera1",
+#       "status": "connected",
+#       "is_recording": false
+#     }
+#   },
+#   "active_recordings": 0,
+#   "total_recordings": 5,
+#   "uptime_seconds": 3600.5
+# }
+
+###############################################################################
+# MACHINE ENDPOINTS
+###############################################################################
+
+### Get all machines status
+GET http://localhost:8000/machines
+# Response: Dict[str, MachineStatusResponse]
+# {
+#   "vibratory_conveyor": {
+#     "name": "vibratory_conveyor",
+#     "state": "off",
+#     "last_updated": "2025-07-28T12:00:00",
+#     "last_message": "off",
+#     "mqtt_topic": "vision/vibratory_conveyor/state"
+#   },
+#   "blower_separator": {
+#     "name": "blower_separator",
+#     "state": "on",
+#     "last_updated": "2025-07-28T12:00:00",
+#     "last_message": "on",
+#     "mqtt_topic": "vision/blower_separator/state"
+#   }
+# }
+
+###############################################################################
+# MQTT ENDPOINTS
+###############################################################################
+
+### Get MQTT status and statistics
+GET http://localhost:8000/mqtt/status
+# Response: MQTTStatusResponse
+# {
+#   "connected": true,
+#   "broker_host": "192.168.1.110",
+#   "broker_port": 1883,
+#   "subscribed_topics": [
+#     "vision/vibratory_conveyor/state",
+#     "vision/blower_separator/state"
+#   ],
+#   "last_message_time": "2025-07-28T12:00:00",
+#   "message_count": 42,
+#   "error_count": 0,
+#   "uptime_seconds": 3600.5
+# }
+
+### Get recent MQTT events history
+GET http://localhost:8000/mqtt/events
+# Optional query parameter: limit (default: 5, max: 50)
+# Response: MQTTEventsHistoryResponse
+# {
+#   "events": [
+#     {
+#       "machine_name": "vibratory_conveyor",
+#       "topic": "vision/vibratory_conveyor/state",
+#       "payload": "on",
+#       "normalized_state": "on",
+#       "timestamp": "2025-07-28T15:30:45.123456",
+#       "message_number": 15
+#     },
+#     {
+#       "machine_name": "blower_separator",
+#       "topic": "vision/blower_separator/state",
+#       "payload": "off",
+#       "normalized_state": "off",
+#       "timestamp": "2025-07-28T15:29:12.654321",
+#       "message_number": 14
+#     }
+#   ],
+#   "total_events": 15,
+#   "last_updated": "2025-07-28T15:30:45.123456"
+# }
+
+### Get recent MQTT events with custom limit
+GET http://localhost:8000/mqtt/events?limit=10
+
+###############################################################################
+# CAMERA ENDPOINTS
+###############################################################################
+
+### Get all cameras status
+GET http://localhost:8000/cameras
+# Response: Dict[str, CameraStatusResponse]
+# {
+#   "camera1": {
+#     "name": "camera1",
+#     "status": "connected",
+#     "is_recording": false,
+#     "last_checked": "2025-07-28T12:00:00",
+#     "last_error": null,
+#     "device_info": {
+#       "friendly_name": "MindVision Camera",
+#       "serial_number": "ABC123"
+#     },
+#     "current_recording_file": null,
+#     "recording_start_time": null
+#   }
+# }
+
+###
+
+### Get specific camera status
+GET http://localhost:8000/cameras/camera1/status
+### Get specific camera status
+GET http://localhost:8000/cameras/camera2/status
+# Response: CameraStatusResponse (same as above for single camera)
+
+###############################################################################
+# RECORDING CONTROL ENDPOINTS
+###############################################################################
+
+### Start recording (with all optional parameters)
+POST http://localhost:8000/cameras/camera1/start-recording
+Content-Type: application/json
+
+{
+  "filename": "test_recording.avi",
+  "exposure_ms": 1.5,
+  "gain": 3.0,
+  "fps": 10.0
+}
+# Request Parameters (all optional):
+# - filename: string - Custom filename (datetime prefix auto-added)
+# - exposure_ms: float - Exposure time in milliseconds
+# - gain: float - Camera gain value
+# - fps: float - Target frames per second (0 = maximum speed, omit = use config default)
+#
+# Response: StartRecordingResponse
+# {
+#   "success": true,
+#   "message": "Recording started for camera1",
+#   "filename": "20250728_120000_test_recording.avi"
+# }
+
+###
+
+### Start recording (minimal - only filename)
+POST http://localhost:8000/cameras/camera1/start-recording
+Content-Type: application/json
+
+{
+  "filename": "simple_test.avi"
+}
+
+###
+
+### Start recording (only camera settings)
+POST http://localhost:8000/cameras/camera1/start-recording
+Content-Type: application/json
+
+{
+  "exposure_ms": 2.0,
+  "gain": 4.0,
+  "fps": 0
+}
+
+###
+
+### Start recording (empty body - all defaults)
+POST http://localhost:8000/cameras/camera1/start-recording
+Content-Type: application/json
+
+{}
+
+###
+
+### Stop recording
+POST http://localhost:8000/cameras/camera1/stop-recording
+POST http://localhost:8000/cameras/camera2/stop-recording
+# No request body required
+# Response: StopRecordingResponse
+# {
+#   "success": true,
+#   "message": "Recording stopped for camera1",
+#   "duration_seconds": 45.2
+# }
+
+###############################################################################
+# AUTO-RECORDING CONTROL ENDPOINTS
+###############################################################################
+
+### Enable auto-recording for a camera
+POST http://localhost:8000/cameras/camera1/auto-recording/enable
+POST http://localhost:8000/cameras/camera2/auto-recording/enable
+# No request body required
+# Response: AutoRecordingConfigResponse
+# {
+#   "success": true,
+#   "message": "Auto-recording enabled for camera1",
+#   "camera_name": "camera1",
+#   "enabled": true
+# }
+
+###
+
+### Disable auto-recording for a camera
+POST http://localhost:8000/cameras/camera1/auto-recording/disable
+POST http://localhost:8000/cameras/camera2/auto-recording/disable
+# No request body required
+# Response: AutoRecordingConfigResponse
+# {
+#   "success": true,
+#   "message": "Auto-recording disabled for camera1",
+#   "camera_name": "camera1",
+#   "enabled": false
+# }
+
+###
+
+### Get auto-recording manager status
+GET http://localhost:8000/auto-recording/status
+# Response: AutoRecordingStatusResponse
+# {
+#   "running": true,
+#   "auto_recording_enabled": true,
+#   "retry_queue": {},
+#   "enabled_cameras": ["camera1", "camera2"]
+# }
+
+###############################################################################
+# CAMERA RECOVERY & DIAGNOSTICS ENDPOINTS
+###############################################################################
+
+### Test camera connection
+POST http://localhost:8000/cameras/camera1/test-connection
+POST http://localhost:8000/cameras/camera2/test-connection
+# No request body required
+# Response: CameraTestResponse
+# {
+#   "success": true,
+#   "message": "Camera camera1 connection test passed",
+#   "camera_name": "camera1",
+#   "timestamp": "2025-07-28T12:00:00"
+# }
+
+###
+
+### Reconnect camera (soft recovery)
+POST http://localhost:8000/cameras/camera1/reconnect
+POST http://localhost:8000/cameras/camera2/reconnect
+# No request body required
+# Response: CameraRecoveryResponse
+# {
+#   "success": true,
+#   "message": "Camera camera1 reconnected successfully",
+#   "camera_name": "camera1",
+#   "operation": "reconnect",
+#   "timestamp": "2025-07-28T12:00:00"
+# }
+
+###
+
+### Restart camera grab process
+POST http://localhost:8000/cameras/camera1/restart-grab
+POST http://localhost:8000/cameras/camera2/restart-grab
+# Response: CameraRecoveryResponse (same structure as reconnect)
+
+###
+
+### Reset camera timestamp
+POST http://localhost:8000/cameras/camera1/reset-timestamp
+POST http://localhost:8000/cameras/camera2/reset-timestamp
+# Response: CameraRecoveryResponse (same structure as reconnect)
+
+###
+
+### Full camera reset (hard recovery)
+POST http://localhost:8000/cameras/camera1/full-reset
+### Full camera reset (hard recovery)
+POST http://localhost:8000/cameras/camera2/full-reset
+# Response: CameraRecoveryResponse (same structure as reconnect)
+
+###
+
+### Reinitialize failed camera
+POST http://localhost:8000/cameras/camera1/reinitialize
+POST http://localhost:8000/cameras/camera2/reinitialize
+# Response: CameraRecoveryResponse (same structure as reconnect)
+
+###############################################################################
+# RECORDING SESSIONS ENDPOINT
+###############################################################################
+
+### Get all recording sessions
+GET http://localhost:8000/recordings
+# Response: Dict[str, RecordingInfoResponse]
+# {
+#   "rec_001": {
+#     "camera_name": "camera1",
+#     "filename": "20250728_120000_test.avi",
+#     "start_time": "2025-07-28T12:00:00",
+#     "state": "completed",
+#     "end_time": "2025-07-28T12:05:00",
+#     "file_size_bytes": 1048576,
+#     "frame_count": 1500,
+#     "duration_seconds": 300.0,
+#     "error_message": null
+#   }
+# }
+
+###############################################################################
+# STORAGE ENDPOINTS
+###############################################################################
+
+### Get storage statistics
+GET http://localhost:8000/storage/stats
+# Response: StorageStatsResponse
+# {
+#   "base_path": "/storage",
+#   "total_files": 25,
+#   "total_size_bytes": 52428800,
+#   "cameras": {
+#     "camera1": {
+#       "file_count": 15,
+#       "total_size_bytes": 31457280
+#     }
+#   },
+#   "disk_usage": {
+#     "total": 1000000000,
+#     "used": 500000000,
+#     "free": 500000000
+#   }
+# }
+
+###
+
+### Get recording files list (with filters)
+POST http://localhost:8000/storage/files
+Content-Type: application/json
+
+{
+  "camera_name": "camera1",
+  "start_date": "2025-07-25T00:00:00",
+  "end_date": "2025-07-28T23:59:59",
+  "limit": 50
+}
+# Request Parameters (all optional):
+# - camera_name: string - Filter by specific camera
+# - start_date: string (ISO format) - Filter files from this date
+# - end_date: string (ISO format) - Filter files until this date
+# - limit: integer (max 1000, default 100) - Maximum number of files to return
+#
+# Response: FileListResponse
+# {
+#   "files": [
+#     {
+#       "filename": "20250728_120000_test.avi",
+#       "camera_name": "camera1",
+#       "file_size_bytes": 1048576,
+#       "created_date": "2025-07-28T12:00:00",
+#       "duration_seconds": 300.0
+#     }
+#   ],
+#   "total_count": 1
+# }
+
+###
+
+### Get all files (no camera filter)
+POST http://localhost:8000/storage/files
+Content-Type: application/json
+
+{
+  "limit": 100
+}
+
+###
+
+### Cleanup old storage files
+POST http://localhost:8000/storage/cleanup
+Content-Type: application/json
+
+{
+  "max_age_days": 7
+}
+# Request Parameters:
+# - max_age_days: integer (optional) - Remove files older than this many days
+#   If not provided, uses config default (30 days)
+#
+# Response: CleanupResponse
+# {
+#   "files_removed": 5,
+#   "bytes_freed": 10485760,
+#   "errors": []
+# }
+
+###############################################################################
+# ERROR RESPONSES
+###############################################################################
+# All endpoints may return ErrorResponse on failure:
+# {
+#   "error": "Error description",
+#   "details": "Additional error details",
+#   "timestamp": "2025-07-28T12:00:00"
+# }
+# Common HTTP status codes:
+# - 200: Success
+# - 400: Bad Request (invalid parameters)
+# - 404: Not Found (camera/resource not found)
+# - 500: Internal Server Error
+# - 503: Service Unavailable (camera manager not available)
+
+###############################################################################
+# NOTES
+###############################################################################
+# 1. All timestamps are in ISO 8601 format
+# 2. File sizes are in bytes
+# 3. Camera names: "camera1", "camera2"
+# 4. Machine names: "vibratory_conveyor", "blower_separator"
+# 5. FPS behavior:
+#    - fps > 0: Capture at specified frame rate
+#    - fps = 0: Capture at MAXIMUM possible speed (no delay)
+#    - fps omitted: Uses camera config default
+# 6. Filenames automatically get datetime prefix: YYYYMMDD_HHMMSS_filename.avi
+# 7. Recovery endpoints should be used in order: test-connection → reconnect → restart-grab → full-reset → reinitialize
+
+
+
+### Start streaming for camera1
+curl -X POST http://localhost:8000/cameras/camera1/start-stream
+
+# View live stream (open in browser)
+# http://localhost:8000/cameras/camera1/stream
+
+### Stop streaming
+curl -X POST http://localhost:8000/cameras/camera1/stop-stream
