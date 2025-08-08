@@ -4,6 +4,11 @@
 
 echo "USDA Vision Camera System - Startup Script"
 echo "=========================================="
+# Ensure we are running from the script directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+echo "📂 Working directory: $SCRIPT_DIR"
+
 
 # Check if virtual environment exists
 if [ ! -d ".venv" ]; then
@@ -14,6 +19,9 @@ fi
 # Activate virtual environment
 echo "🔧 Activating virtual environment..."
 source .venv/bin/activate
+# Ensure project root is on PYTHONPATH for imports
+export PYTHONPATH="$SCRIPT_DIR:$PYTHONPATH"
+
 
 # Check if config file exists
 if [ ! -f "config.json" ]; then
@@ -30,11 +38,19 @@ fi
 
 # Check time synchronization
 echo "🕐 Checking time synchronization..."
+python tests/core/check_time.py
+echo ""
+# Check time synchronization
+echo "🕐 Checking time synchronization..."
+python check_time.py
+echo ""
+# Check time synchronization
+echo "🕐 Checking time synchronization..."
 python check_time.py
 echo ""
 # Run system tests first
 echo "🧪 Running system tests..."
-python test_system.py
+python tests/integration/test_system.py
 
 if [ $? -ne 0 ]; then
     echo "❌ System tests failed. Please check the configuration."

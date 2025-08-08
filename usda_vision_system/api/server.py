@@ -662,6 +662,16 @@ class APIServer:
                 self.logger.error(f"Error during cleanup: {e}")
                 raise HTTPException(status_code=500, detail=str(e))
 
+        @self.app.post("/storage/reindex")
+        async def reindex_untracked_videos():
+            """Reindex untracked video files"""
+            try:
+                result = self.storage_manager.reindex_untracked_videos()
+                return result
+            except Exception as e:
+                self.logger.error(f"Error during reindexing: {e}")
+                raise HTTPException(status_code=500, detail=str(e))
+
         @self.app.websocket("/ws")
         async def websocket_endpoint(websocket: WebSocket):
             """WebSocket endpoint for real-time updates"""

@@ -38,6 +38,9 @@ class StorageManager:
         if self.event_system:
             self._setup_event_subscriptions()
 
+        # Auto-reindex untracked videos on startup
+        self._auto_reindex_untracked_videos()
+
     def _ensure_storage_structure(self) -> None:
         """Ensure storage directory structure exists"""
         try:
@@ -66,9 +69,12 @@ class StorageManager:
                 camera_name = event.data.get("camera_name")
                 filename = event.data.get("filename")
                 if camera_name and filename:
+                    self.logger.info(f"Storage manager handling recording started: {camera_name} -> {filename}")
                     self.register_recording_file(camera_name=camera_name, filename=filename, start_time=event.timestamp, machine_trigger=event.data.get("machine_trigger"))
+                else:
+                    self.logger.warning(f"Recording started event missing data: camera_name={camera_name}, filename={filename}")
             except Exception as e:
-                self.logger.error(f"Error handling recording started event: {e}")
+                self.logger.error(f"Error handling recording started event: {e}", exc_info=True)
 
         def on_recording_stopped(event: Event):
             """Handle recording stopped event"""
@@ -76,9 +82,12 @@ class StorageManager:
                 filename = event.data.get("filename")
                 if filename:
                     file_id = os.path.basename(filename)
+                    self.logger.info(f"Storage manager handling recording stopped: {file_id}")
                     self.finalize_recording_file(file_id=file_id, end_time=event.timestamp, duration_seconds=event.data.get("duration_seconds"))
+                else:
+                    self.logger.warning(f"Recording stopped event missing filename: {event.data}")
             except Exception as e:
-                self.logger.error(f"Error handling recording stopped event: {e}")
+                self.logger.error(f"Error handling recording stopped event: {e}", exc_info=True)
 
         # Subscribe to recording events
         self.event_system.subscribe(EventType.RECORDING_STARTED, on_recording_started)
@@ -415,3 +424,64 @@ class StorageManager:
             self.logger.error(f"Error during integrity check: {e}")
             integrity_report["error"] = str(e)
             return integrity_report
+
+    def _auto_reindex_untracked_videos(self) -> None:
+        """Automatically reindex videos that are not tracked in the index"""
+        try:
+            self.logger.info("Checking for untracked videos to reindex...")
+
+            untracked_count = 0
+            for camera_config in self.config.cameras:
+                storage_path = Path(camera_config.storage_path)
+                if not storage_path.exists():
+                    continue
+
+                # Scan for all supported video formats
+                video_extensions = ["*.avi", "*.mp4", "*.webm"]
+                for pattern in video_extensions:
+                    for video_file in storage_path.glob(pattern):
+                        if not video_file.is_file():
+                            continue
+
+                        file_id = video_file.name
+
+                        # Check if file is already in index
+                        if file_id in self.file_index["files"]:
+                            continue
+
+                        # Add untracked file to index
+                        try:
+                            stat = video_file.stat()
+                            file_mtime = datetime.fromtimestamp(stat.st_mtime)
+
+                            file_info = {"camera_name": camera_config.name, "filename": str(video_file), "file_id": file_id, "start_time": file_mtime.isoformat(), "end_time": file_mtime.isoformat(), "file_size_bytes": stat.st_size, "duration_seconds": None, "machine_trigger": None, "status": "completed", "created_at": file_mtime.isoformat()}  # Assume completed for existing files
+
+                            self.file_index["files"][file_id] = file_info
+                            untracked_count += 1
+                            self.logger.info(f"Auto-indexed untracked video: {file_id}")
+
+                        except Exception as e:
+                            self.logger.error(f"Error auto-indexing {video_file}: {e}")
+
+            if untracked_count > 0:
+                self._save_file_index()
+                self.logger.info(f"Auto-reindexed {untracked_count} untracked videos")
+            else:
+                self.logger.info("No untracked videos found")
+
+        except Exception as e:
+            self.logger.error(f"Error during auto-reindexing: {e}")
+
+    def reindex_untracked_videos(self) -> Dict[str, Any]:
+        """Manually trigger reindexing of untracked videos"""
+        try:
+            self.logger.info("Manual reindexing triggered")
+            initial_count = len(self.file_index["files"])
+            self._auto_reindex_untracked_videos()
+            final_count = len(self.file_index["files"])
+            reindexed_count = final_count - initial_count
+
+            return {"success": True, "reindexed_count": reindexed_count, "total_files": final_count}
+        except Exception as e:
+            self.logger.error(f"Error during manual reindexing: {e}")
+            return {"success": False, "error": str(e), "reindexed_count": 0}
